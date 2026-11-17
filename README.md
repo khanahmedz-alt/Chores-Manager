@@ -11,7 +11,7 @@ A family app for tracking chore time and pocket-money pay.
 | --- | --- | --- |
 | My week / Timesheets | Children / Parents | 7-day timesheet with the planned chores for each day, a "Log" button, and the pay for each entry |
 | Approvals | Parents | Time waiting for approval, grouped by child. Approve, reject, edit, or approve all |
-| Schedule | Everyone (parents edit) | Chores × days grid. Tap a slot to assign a child, set it to "Anyone", or remove the day |
+| Schedule | Everyone | Week-by-week chores × days grid. Next week's schedule goes up for the children every **Saturday at 18:00**; they tap **Take** on open slots to pick the chores they'll do (and can drop their own picks). Parents can assign, reassign or remove any slot at any time, including before it goes up; a child can't drop a chore a parent gave them |
 | Chores & pay | Everyone (parents edit) | The chore list from the spreadsheet (Task, Hrs/wk, Wk payment, Activity) and the /month → /wk → /hr rate |
 | Balance(s) | Everyone | Approved pay − payments = balance owed. Payment history with "Confirm received" for the child |
 
@@ -25,7 +25,7 @@ SAR 346.15 / week ÷ 40 budgeted hours = SAR 8.65 / hour
 entry pay = hours logged × hourly rate
 ```
 
-Under **Pay settings**, parents can change the budget or budgeted hours, switch to a fixed hourly rate, add a currency symbol, and set a parent PIN. Each chore can have its own rate. Every entry keeps the rate it was logged at, so changing the rate later doesn't change past pay.
+Under **Settings**, parents can change the budget or budgeted hours, switch to a fixed hourly rate, add a currency symbol, and set a parent PIN, and change when the next week's schedule goes up (default Saturday 18:00). Each chore can have its own rate. Every entry keeps the rate it was logged at, so changing the rate later doesn't change past pay.
 
 ## Running it
 
