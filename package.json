@@ -1,0 +1,9 @@
+{
+  "name": "chores-manager-repo",
+  "private": true,
+  "description": "Deploy wrapper: the app lives in ./app",
+  "engines": { "node": "22.x" },
+  "scripts": {
+    "build": "npm install --prefix app && npm run build --prefix app"
+  }
+}
