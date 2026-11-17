@@ -2,6 +2,8 @@
 
 A family app for tracking chore time and pocket-money pay.
 
+> **Two versions live here.** `src/app.html` is the original single-family app (runs as a claude.ai Artifact). `app/` is the multi-family version on Supabase that any family can sign up to: see [`app/README.md`](app/README.md).
+
 - **Parents (Mother, Father)** add chores, set hours per week, the days and who does them, and the rate of pay. They approve the time the children log and record payments.
 - **Children (Mustafa, Ayesha, Aaminah, Mohammad)** fill in a weekly timesheet: choose a chore and the time spent. Pay is worked out from the rate, then sent for approval. They confirm when they've been paid.
 
