@@ -20,8 +20,8 @@ A family app for tracking chore time and pocket-money pay.
 The default matches the family spreadsheet:
 
 ```
-1,500.00 / month × 12 ÷ 52  = 346.15 / week
-346.15 / week ÷ 40 budgeted hours = 8.65 / hour
+SAR 1,500.00 / month × 12 ÷ 52  = SAR 346.15 / week
+SAR 346.15 / week ÷ 40 budgeted hours = SAR 8.65 / hour
 entry pay = hours logged × hourly rate
 ```
 
