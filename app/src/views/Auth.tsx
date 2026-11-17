@@ -12,9 +12,17 @@ export function AuthScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'err' | 'ok'; text: string } | null>(null);
+  const [canResend, setCanResend] = useState(false);
+
+  async function resend() {
+    setBusy(true);
+    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: window.location.origin } });
+    setBusy(false);
+    setMsg(error ? { kind: 'err', text: errorText(error) } : { kind: 'ok', text: `Sent again to ${email.trim()}. Check the spam folder too.` });
+  }
 
   async function submit(e: FormEvent) {
-    e.preventDefault(); setMsg(null); setBusy(true);
+    e.preventDefault(); setMsg(null); setCanResend(false); setBusy(true);
     try {
       if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -23,7 +31,7 @@ export function AuthScreen() {
         if (password.length < 8) throw new Error('Use a password of at least 8 characters.');
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin } });
         if (error) throw error;
-        if (!data.session) setMsg({ kind: 'ok', text: `We sent a link to ${email.trim()}. Open it to confirm your email, then sign in.` });
+        if (!data.session) { setMsg({ kind: 'ok', text: `We sent a link to ${email.trim()}. Open it to confirm your email, then sign in.` }); setCanResend(true); }
       } else if (mode === 'reset') {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
         if (error) throw error;
@@ -40,6 +48,7 @@ export function AuthScreen() {
       }
     } catch (err) {
       const t = errorText(err);
+      if (/email not confirmed/i.test(t)) { setMsg({ kind: 'err', text: 'Your email isn’t confirmed yet. Open the link we emailed you, or send it again.' }); setCanResend(true); return; }
       setMsg({ kind: 'err', text: /Anonymous sign-ins are disabled/i.test(t) ? 'Child devices are switched off for this app. The app owner needs to allow anonymous sign-ins in Supabase.' : t });
     } finally { setBusy(false); }
   }
@@ -67,6 +76,7 @@ export function AuthScreen() {
               {mode !== 'reset' && <label className="field"><span>Password</span><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} />{mode === 'signup' && <small>At least 8 characters.</small>}</label>}
             </>}
             {msg && <p className={msg.kind === 'err' ? 'err' : 'okmsg'} role="alert">{msg.text}</p>}
+            {canResend && email.trim() && <button type="button" className="btn ghost" onClick={resend} disabled={busy}>Send the confirmation email again</button>}
             <button className="btn primary" type="submit" disabled={busy}>
               {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Link this device'}
             </button>
