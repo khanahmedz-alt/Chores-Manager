@@ -149,7 +149,9 @@ function Setup() {
   return (
     <div className="auth"><main className="wrap auth-main"><section className="auth-card stack" style={{ gap: 12 }}>
       <h1>Connect Supabase</h1>
-      <p>This build has no Supabase project set. Copy <code>.env.example</code> to <code>.env</code>, fill in <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> from your project’s API settings, then restart <code>npm run dev</code>.</p>
+      <p>This build doesn’t know which Supabase project to use yet.</p>
+      <p><b>On Vercel:</b> Project → Settings → Environment Variables. Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> (the anon or publishable key from Supabase’s Connect button), then Deployments → ⋯ → Redeploy.</p>
+      <p className="cap">On your own computer: put the same two values in <code>app/.env</code> and restart <code>npm run dev</code>.</p>
     </section></main></div>
   );
 }
