@@ -13,8 +13,8 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
-## 1.2.0 (in testing)
-Branch: `claude/preview-bonus-teams`, not live yet.
+## 1.2.0 (18 Nov 2026, live)
+Backup: branch `release/v1.2.0`.
 
 **New**
 - **Contact page** at `/contact`, linked from every footer and the header menu, signed in or out. The form has email (filled in for parents), topic and message fields. It saves to `contact_messages` and emails contact@mizala.ai through Resend, and if the email fails the message is still saved.
@@ -28,7 +28,7 @@ Branch: `claude/preview-bonus-teams`, not live yet.
 
 See app/README.md → "Contact page" and "Backups".
 
-## 1.1.0 (18 Nov 2026, live)
+## 1.1.0 (18 Nov 2026)
 Backup: branch `release/v1.1.0`.
 
 **New**
