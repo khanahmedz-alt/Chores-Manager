@@ -65,6 +65,9 @@ export interface Entry {
   created_at: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  team_id: string | null;
+  team_members: string[];
+  split: number;
 }
 
 export interface Payment {
@@ -88,4 +91,35 @@ export interface Invite {
   member_id: string | null;
   expires_at: string;
   used_at: string | null;
+}
+
+export type Tier = 'meets' | 'good' | 'excelled';
+
+export interface BonusMetric {
+  id: string;
+  household_id: string;
+  name: string;
+  meets_text: string;
+  good_text: string;
+  excelled_text: string;
+  max_percent: number;
+  active: boolean;
+  sort_order: number;
+}
+
+export interface Rating { metric_id: string; tier: Tier; name?: string; max_percent?: number; percent?: number }
+
+export interface Review {
+  id: string;
+  household_id: string;
+  member_id: string;
+  week_start: string;
+  ratings: Rating[];
+  base_amount: number;
+  bonus_percent: number;
+  bonus_amount: number;
+  note: string;
+  created_by: string | null;
+  updated_by: string | null;
+  updated_at: string;
 }

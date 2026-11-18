@@ -2,7 +2,7 @@
 // by acting as each kind of user. Usage:
 //   PGURL=postgres://postgres@127.0.0.1:54329/postgres node supabase/tests/rls.test.mjs
 import pg from 'pg';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 
@@ -17,7 +17,9 @@ await db.connect();
 
 const here = new URL('.', import.meta.url);
 await db.query(readFileSync(new URL('supabase_stub.sql', here), 'utf8'));
-await db.query(readFileSync(new URL('../migrations/0001_init.sql', here), 'utf8'));
+for (const f of readdirSync(new URL('../migrations/', here)).filter(f => f.endsWith('.sql')).sort()) {
+  await db.query(readFileSync(new URL('../migrations/' + f, here), 'utf8'));
+}
 
 let passed = 0;
 const users = {};
@@ -177,6 +179,59 @@ await fails('mustafa_phone', `insert into public.payments (household_id, member_
 ok('a child cannot record payments');
 assert.equal((await as('mother', `delete from public.payments where id = $1`, [p.id])).rowCount, 0);
 ok('a confirmed payment cannot be deleted');
+
+// ---------------------------------------------------------------- team chores
+const team = (await as('mustafa_phone', `select public.log_team_time($1, $2, $3, 120, 'together', $4) t`, [hh, GARDEN, today, [MUSTAFA, AYESHA]])).rows[0].t;
+let rows = (await db.query(`select member_id, amount, split, status, team_members from public.time_entries where team_id = $1 order by member_id`, [team])).rows;
+assert.equal(rows.length, 2);
+for (const r of rows) { assert.equal(Number(r.amount), 20); assert.equal(r.status, 'submitted'); assert.equal(r.team_members.length, 2); }
+ok('two children log 2h of gardening together at 20/hr: 40.00 split into 20.00 each, both awaiting approval');
+assert.equal((await as('ayesha_phone', `select count(*)::int n from public.time_entries where team_id = $1`, [team])).rows[0].n, 1);
+ok('each child sees their own share of the team chore');
+await fails('mustafa_phone', `insert into public.time_entries (household_id, member_id, chore_id, work_date, minutes, team_id, split) values ($1, $2, $3, $4, 30, gen_random_uuid(), 0.1)`, [hh, MUSTAFA, GARDEN, today], /team option/);
+ok('a child cannot fake a team share by writing the entry directly');
+await fails('ayesha_phone', `update public.time_entries set minutes = 600 where team_id = $1`, [team], /whole team/);
+assert.equal((await as('ayesha_phone', `delete from public.time_entries where team_id = $1`, [team])).rowCount, 0);
+ok('a teammate cannot change or delete just their own share');
+await fails('ayesha_phone', `select public.update_team_time($1, $2, $3, 60, '')`, [team, GARDEN, today], /logged it/);
+ok('only the child who logged it (or a parent) can change a team chore');
+await as('mustafa_phone', `select public.update_team_time($1, $2, $3, 60, 'shorter')`, [team, GARDEN, today]);
+rows = (await db.query(`select amount from public.time_entries where team_id = $1`, [team])).rows;
+assert.ok(rows.every(r => Number(r.amount) === 10));
+ok('changing the team chore to 1h updates everyone’s share (10.00 each)');
+await fails('mustafa_phone', `select public.log_team_time($1, $2, $3, 60, '', $4)`, [hh, GARDEN, today, [MUSTAFA]], /2 to 8/);
+await fails('outsider', `select public.log_team_time($1, $2, $3, 60, '', $4)`, [hh, GARDEN, today, [MUSTAFA, AYESHA]], /Not a member/);
+ok('a team needs at least two children, and outsiders cannot log one');
+await as('father', `update public.time_entries set status = 'approved' where team_id = $1`, [team]);
+assert.ok((await db.query(`select bool_and(status = 'approved') ok from public.time_entries where team_id = $1`, [team])).rows[0].ok);
+await fails('mustafa_phone', `select public.delete_team_time($1)`, [team], /Approved/);
+ok('a parent approves the whole team at once; children cannot delete it after that');
+
+// ---------------------------------------------------------------- performance bonus
+const metrics = (await as('mother', `insert into public.bonus_metrics (household_id, name, max_percent, good_text, excelled_text) values
+  ($1, 'School grades', 10, 'Mostly Bs', 'Mostly As'), ($1, 'Room tidy', 5, '', '') returning id, name`, [hh])).rows;
+const GRADES = metrics.find(m => m.name === 'School grades').id, TIDY = metrics.find(m => m.name === 'Room tidy').id;
+ok('a parent adds bonus metrics with a max %');
+await fails('mustafa_phone', `insert into public.bonus_metrics (household_id, name, max_percent) values ($1, 'Free money', 100)`, [hh], /row-level security/);
+ok('a child cannot add bonus metrics');
+const weekBase = Number((await db.query(`select sum(amount) s from public.time_entries where member_id = $1 and status = 'approved' and work_date between $2::date and $2::date + 6`, [MUSTAFA, thisWeek])).rows[0].s);
+const rv = (await as('mother', `insert into public.performance_reviews (household_id, member_id, week_start, ratings, bonus_amount, base_amount)
+  values ($1, $2, $3, $4, 999, 999) returning base_amount, bonus_percent, bonus_amount, ratings`,
+  [hh, MUSTAFA, thisWeek, JSON.stringify([{ metric_id: GRADES, tier: 'excelled' }, { metric_id: TIDY, tier: 'good' }])])).rows[0];
+assert.equal(Number(rv.base_amount), weekBase); assert.equal(Number(rv.bonus_percent), 11.25);
+assert.ok(Math.abs(Number(rv.bonus_amount) - weekBase * 0.1125) <= 0.006);
+assert.equal(rv.ratings[0].name, 'School grades');
+ok(`grades Excelled (10% of 10%) + tidy Good (25% of 5%) = 11.25% of ${weekBase.toFixed(2)} approved pay = ${Number(rv.bonus_amount).toFixed(2)}, worked out by the database`);
+await fails('mother', `insert into public.performance_reviews (household_id, member_id, week_start, ratings) values ($1, $2, ($3::date + 7), $4)`, [hh, MUSTAFA, thisWeek, JSON.stringify([{ metric_id: GRADES, tier: 'amazing' }])], /Meets, Good or Excelled/);
+await fails('mother', `insert into public.performance_reviews (household_id, member_id, week_start, ratings) values ($1, $2, ($3::date + 7), $4)`, [hh, MUSTAFA, thisWeek, JSON.stringify([{ metric_id: GRADES, tier: 'good' }, { metric_id: GRADES, tier: 'good' }])], /only be rated once/);
+ok('ratings must be Meets, Good or Excelled, once per metric');
+const meets = (await as('mother', `update public.performance_reviews set ratings = $1 where member_id = $2 and week_start = $3 returning bonus_amount`, [JSON.stringify([{ metric_id: GRADES, tier: 'meets' }]), MUSTAFA, thisWeek])).rows[0];
+assert.equal(Number(meets.bonus_amount), 0);
+ok('Meets earns 0% of the metric’s max');
+assert.equal((await as('mustafa_phone', `select count(*)::int n from public.performance_reviews`)).rows[0].n, 1);
+assert.equal((await as('ayesha_phone', `select count(*)::int n from public.performance_reviews`)).rows[0].n, 0);
+await fails('mustafa_phone', `insert into public.performance_reviews (household_id, member_id, week_start, ratings) values ($1, $2, ($3::date + 14), '[]')`, [hh, MUSTAFA, thisWeek], /row-level security/);
+ok('a child sees only their own bonus and cannot award one');
 
 // ---------------------------------------------------------------- members
 await fails('mother', `update public.members set role = 'child' where user_id = $1`, [users.mother.id], /own role/);

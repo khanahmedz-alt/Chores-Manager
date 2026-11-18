@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase, errorText } from './supabase';
-import type { Chore, Entry, Household, Member, Payment, Slot, SlotKind } from './types';
+import type { BonusMetric, Chore, Entry, Household, Member, Payment, Review, Slot, SlotKind } from './types';
 import { addDays, slotMap, todayIn, weekOf, type SlotMap } from './lib/util';
 
-type Table = 'households' | 'members' | 'chores' | 'schedule_slots' | 'time_entries' | 'payments';
+type Table = 'households' | 'members' | 'chores' | 'schedule_slots' | 'time_entries' | 'payments' | 'bonus_metrics' | 'performance_reviews';
 
 export interface FamilyData {
   household: Household;
@@ -12,6 +12,8 @@ export interface FamilyData {
   slots: Slot[];
   entries: Entry[];
   payments: Payment[];
+  metrics: BonusMetric[];
+  reviews: Review[];
 }
 
 interface FamilyCtx extends FamilyData {
@@ -57,15 +59,25 @@ async function fetchTable(t: Table, hh: string): Promise<Partial<FamilyData>> {
     }
     case 'time_entries': {
       const { data, error } = await supabase.from('time_entries').select('*').eq('household_id', hh).order('work_date').order('created_at').limit(5000);
-      if (error) throw error; return { entries: num(data as Entry[], ['minutes', 'rate', 'amount']) };
+      if (error) throw error; return { entries: num(data as Entry[], ['minutes', 'rate', 'amount', 'split']).map(e => ({ ...e, team_members: e.team_members || [], split: e.split ?? 1 })) };
     }
     case 'payments': {
       const { data, error } = await supabase.from('payments').select('*').eq('household_id', hh).order('paid_on', { ascending: false }).limit(2000);
       if (error) throw error; return { payments: num(data as Payment[], ['amount']) };
     }
+    case 'bonus_metrics': {
+      const { data, error } = await supabase.from('bonus_metrics').select('*').eq('household_id', hh).order('sort_order').order('created_at');
+      if (error) return { metrics: [] }; // not set up yet (migration 0002 not run): the rest of the app still works
+      return { metrics: num(data as BonusMetric[], ['max_percent']) };
+    }
+    case 'performance_reviews': {
+      const { data, error } = await supabase.from('performance_reviews').select('*').eq('household_id', hh).order('week_start', { ascending: false }).limit(2000);
+      if (error) return { reviews: [] };
+      return { reviews: num(data as Review[], ['base_amount', 'bonus_percent', 'bonus_amount']) };
+    }
   }
 }
-const ALL: Table[] = ['households', 'members', 'chores', 'schedule_slots', 'time_entries', 'payments'];
+const ALL: Table[] = ['households', 'members', 'chores', 'schedule_slots', 'time_entries', 'payments', 'bonus_metrics', 'performance_reviews'];
 
 export function FamilyProvider({ householdId, userId, children, fallback }: { householdId: string; userId: string; children: ReactNode; fallback: (state: { error?: string; retry: () => void }) => ReactNode }) {
   const [data, setData] = useState<FamilyData | null>(null);

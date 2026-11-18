@@ -24,10 +24,14 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
   const [note, setNote] = useState(entry?.note || '');
   const [err, setErr] = useState('');
   const [confirmDel, setConfirmDel] = useState(false);
+  const [partners, setPartners] = useState<string[]>([]);
   const kid = F.member(childId);
+  const team = entry?.team_id ? entry.team_members : partners.length ? [childId, ...partners] : [];
+  const n = Math.max(1, team.length);
+  const siblings = F.kids.filter(k => k.id !== childId);
   const chore = chores.find(c => c.id === cid);
   const rate = entry && entry.chore_id === cid ? entry.rate : choreRate(h, chore);
-  const canDelete = entry && (isParent || entry.status !== 'approved');
+  const canDelete = entry && (isParent || (entry.status !== 'approved' && (!entry.team_id || entry.created_by === F.me.id)));
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr('');
@@ -35,7 +39,12 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
     if (mins <= 0) { setErr('Enter the time spent, more than 0 minutes.'); return; }
     if (mins > 16 * 60) { setErr('That is more than 16 hours. Check the hours.'); return; }
     const body = { chore_id: cid, work_date: day, minutes: mins, note: note.trim() };
-    const ok = entry
+    const ok = entry?.team_id
+      ? await F.run(['time_entries'], () => supabase.rpc('update_team_time', { p_team: entry.team_id, p_chore: cid, p_date: day, p_minutes: mins, p_note: body.note }), 'Saved for the whole team')
+      : !entry && partners.length
+      ? await F.run(['time_entries'], () => supabase.rpc('log_team_time', { p_household: h.id, p_chore: cid, p_date: day, p_minutes: mins, p_note: body.note, p_members: [childId, ...partners] }),
+          isParent ? `Team time added and approved for ${n} children` : `Sent for approval. The pay is split ${n} ways.`)
+      : entry
       ? await F.run(['time_entries'], () => supabase.from('time_entries').update(body).eq('id', entry.id), 'Saved')
       : await F.run(['time_entries'], () => supabase.from('time_entries').insert({ ...body, household_id: h.id, member_id: childId, status: isParent ? 'approved' : 'submitted' }),
           isParent ? 'Time added and approved' : 'Sent to your parents for approval');
@@ -46,7 +55,12 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
     <Modal title="Log chore time" onClose={onClose}><div className="sheet-body"><p>There are no chores yet. A parent needs to add them on Chores &amp; pay first.</p></div></Modal>
   );
   if (confirmDel && entry) return <Confirm title="Delete this entry?" text={`${dur(entry.minutes)} of ${entry.chore_name} on ${fmtDay(entry.work_date)}.`} action="Delete"
-    onClose={() => setConfirmDel(false)} onConfirm={async () => { if (await F.run(['time_entries'], () => supabase.from('time_entries').delete().eq('id', entry.id), 'Entry deleted')) onClose(); }} />;
+    onClose={() => setConfirmDel(false)} onConfirm={async () => {
+      const ok = entry.team_id
+        ? await F.run(['time_entries'], () => supabase.rpc('delete_team_time', { p_team: entry.team_id }), 'Team chore deleted for everyone')
+        : await F.run(['time_entries'], () => supabase.from('time_entries').delete().eq('id', entry.id), 'Entry deleted');
+      if (ok) onClose();
+    }} />;
 
   const chips = [15, 30, 45, 60, 90, 120, 180];
   return (
@@ -68,8 +82,18 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
               {Array.from({ length: 12 }, (_, i) => i * 5).map(m => <option key={m} value={m}>{pad(m)}</option>)}</select></label>
           </div>
         </div>
+        {entry?.team_id
+          ? <div className="field"><span>Team chore</span><p className="team-line">{entry.team_members.map(id => <Avatar key={id} m={F.member(id)} size="sm" />)} {entry.team_members.map(id => F.member(id)?.display_name).join(', ')}</p>
+              <small>Changes here apply to everyone in the team.</small></div>
+          : !entry && siblings.length > 0 && <div className="field"><span>Did it together? <small>(optional)</small></span>
+              <div className="chips">{siblings.map(k => (
+                <button type="button" key={k.id} className="chip with-av" aria-pressed={partners.includes(k.id)}
+                  onClick={() => setPartners(p => p.includes(k.id) ? p.filter(x => x !== k.id) : [...p, k.id])}><Avatar m={k} size="sm" />{k.display_name}</button>))}</div>
+              <small>Pick who helped. Everyone logs the same time and the pay is split equally.</small></div>}
         <label className="field"><span>Note <small>(optional)</small></span><input type="text" maxLength={280} placeholder="e.g. Also washed the mats" value={note} onChange={e => setNote(e.target.value)} /></label>
-        <div className="preview"><span className="muted num">{dur(mins)} × {money(h, rate)}/hr</span><b className="num">{money(h, r2(mins / 60 * rate))}</b></div>
+        <div className="preview">
+          <span className="muted num">{dur(mins)} × {money(h, rate)}/hr{n > 1 ? ` = ${money(h, r2(mins / 60 * rate))} ÷ ${n}` : ''}</span>
+          <b className="num">{money(h, r2(mins / 60 * rate / n))}{n > 1 ? ' each' : ''}</b></div>
         {err && <p className="err" role="alert">{err}</p>}
         <div className="sheet-actions">
           {canDelete && <button type="button" className="btn warn left" onClick={() => setConfirmDel(true)}>Delete</button>}
@@ -85,23 +109,30 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
 export function EntryRow({ e, onEdit }: { e: Entry; onEdit: (e: Entry) => void }) {
   const F = useFamily();
   const [rejecting, setRejecting] = useState(false);
-  const approve = () => F.run(['time_entries'], () => supabase.from('time_entries').update({ status: 'approved' }).eq('id', e.id), 'Approved');
+  const n = e.team_id ? e.team_members.length : 1;
+  const others = e.team_members.filter(id => id !== e.member_id).map(id => F.member(id)?.display_name).filter(Boolean).join(', ');
+  const setStatus = (status: 'approved' | 'rejected', msg: string) => F.run(['time_entries'], () => e.team_id
+    ? supabase.from('time_entries').update({ status }).eq('team_id', e.team_id)
+    : supabase.from('time_entries').update({ status }).eq('id', e.id), msg);
+  const approve = () => setStatus('approved', n > 1 ? `Approved for all ${n} in the team` : 'Approved');
+  const canEdit = F.isParent || (e.status !== 'approved' && (!e.team_id || e.created_by === F.me.id));
   return (
     <div className="entry">
       <span className="what">{e.chore_name}</span><span className="amt">{money(F.household, e.amount)}</span>
       <div className="meta">
-        <span className="num">{dur(e.minutes)} × {money(F.household, e.rate)}/hr</span><Pill status={e.status} />
+        <span className="num">{dur(e.minutes)} × {money(F.household, e.rate)}/hr{n > 1 ? ` ÷ ${n}` : ''}</span><Pill status={e.status} />
+        {n > 1 && <span className="pill team">Team · with {others}</span>}
         {e.note && <span>“{e.note}”</span>}
         <span className="acts">
           {F.isParent && e.status === 'submitted' && <>
             <button className="btn go sm" onClick={approve}>Approve</button>
             <button className="btn warn sm" onClick={() => setRejecting(true)}>Reject</button></>}
-          {(F.isParent || e.status !== 'approved') && <button className="btn ghost sm" onClick={() => onEdit(e)}>Edit</button>}
+          {canEdit && <button className="btn ghost sm" onClick={() => onEdit(e)}>Edit</button>}
         </span>
       </div>
       {rejecting && <Confirm title="Reject this time?" action="Reject" onClose={() => setRejecting(false)}
-        text={`${F.member(e.member_id)?.display_name} logged ${dur(e.minutes)} of ${e.chore_name} on ${fmtDay(e.work_date)}. It won’t be paid. They can edit and resend it.`}
-        onConfirm={() => F.run(['time_entries'], () => supabase.from('time_entries').update({ status: 'rejected' }).eq('id', e.id), 'Marked as not approved')} />}
+        text={`${n > 1 ? `The team (${e.team_members.map(id => F.member(id)?.display_name).join(', ')})` : F.member(e.member_id)?.display_name} logged ${dur(e.minutes)} of ${e.chore_name} on ${fmtDay(e.work_date)}. It won’t be paid. They can edit and resend it.`}
+        onConfirm={() => setStatus('rejected', 'Marked as not approved')} />}
     </div>
   );
 }
@@ -120,6 +151,7 @@ export function Timesheet({ kidId, week, setWeek }: { kidId: string; week: strin
   const showPlan = isParent || isOpen(h, w);
   const planned = kidLoad(h, chores, slotIndex, w, kidId).mins;
   const kid = F.member(kidId);
+  const bonus = F.reviews.find(r => r.member_id === kidId && r.week_start === w);
 
   return (
     <>
@@ -164,7 +196,7 @@ export function Timesheet({ kidId, week, setWeek }: { kidId: string; week: strin
           );
         })}
       </div>
-      <div className="weektotal"><span>Week total for {kid?.display_name}</span><b>{dur(wkMins)} · {money(h, sum(live))}</b></div>
+      <div className="weektotal"><span>Week total for {kid?.display_name}{bonus ? ` · includes ${money(h, bonus.bonus_amount)} performance bonus` : ''}</span><b>{dur(wkMins)} · {money(h, r2(sum(live) + (bonus?.bonus_amount || 0)))}</b></div>
       {modal && <EntryModal childId={kidId} week={w} {...modal} onClose={() => setModal(null)} />}
     </>
   );

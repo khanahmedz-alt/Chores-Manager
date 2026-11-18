@@ -1,4 +1,4 @@
-import type { Chore, Household, Slot } from '../types';
+import type { Chore, Household, Slot, Tier } from '../types';
 
 export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const DAYS_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -113,3 +113,12 @@ export function textOn(hex: string) {
   return lum > 0.5 ? '#0b1a10' : '#ffffff';
 }
 export const uniq = <T,>(a: T[]) => [...new Set(a)];
+
+/* ---------- performance bonus ---------- */
+export const TIERS: { id: Tier; label: string; factor: number }[] = [
+  { id: 'meets', label: 'Meets', factor: 0 },
+  { id: 'good', label: 'Good', factor: 0.25 },
+  { id: 'excelled', label: 'Excelled', factor: 1 },
+];
+export const tierFactor = (t: Tier) => TIERS.find(x => x.id === t)?.factor ?? 0;
+export const pct = (n: number) => `${(Math.round(Number(n) * 100) / 100).toLocaleString('en-GB', { maximumFractionDigits: 2 })}%`;

@@ -17,8 +17,9 @@ export function Balances() {
     const es = F.entries.filter(e => e.member_id === id);
     const s = (a: { amount: number }[]) => r2(a.reduce((x, y) => x + y.amount, 0));
     const ap = es.filter(e => e.status === 'approved');
-    const earned = s(ap), paid = s(F.payments.filter(p => p.member_id === id));
-    return { earned, paid, balance: r2(earned - paid), pending: s(es.filter(e => e.status === 'submitted')), mins: ap.reduce((x, e) => x + e.minutes, 0) };
+    const bonus = r2(F.reviews.filter(r => r.member_id === id).reduce((x, r) => x + r.bonus_amount, 0));
+    const chores = s(ap), earned = r2(chores + bonus), paid = s(F.payments.filter(p => p.member_id === id));
+    return { chores, bonus, earned, paid, balance: r2(earned - paid), pending: s(es.filter(e => e.status === 'submitted')), mins: ap.reduce((x, e) => x + e.minutes, 0) };
   };
 
   const confirm = async (p: Payment) => {
@@ -31,11 +32,15 @@ export function Balances() {
     const w = weekOf(e.work_date); const x = weeks.get(w) || { mins: 0, amt: 0, by: new Map() };
     x.mins += e.minutes; x.amt += e.amount; x.by.set(e.member_id, (x.by.get(e.member_id) || 0) + e.amount); weeks.set(w, x);
   });
+  F.reviews.filter(r => kids.some(k => k.id === r.member_id) && r.bonus_amount > 0).forEach(r => {
+    const x = weeks.get(r.week_start) || { mins: 0, amt: 0, by: new Map() };
+    x.amt += r.bonus_amount; x.by.set(r.member_id, (x.by.get(r.member_id) || 0) + r.bonus_amount); weeks.set(r.week_start, x);
+  });
   const wk = [...weeks.keys()].sort().reverse().slice(0, 8);
 
   return (
     <>
-      <div className="page-head"><div><h1>{isParent ? 'Balances' : 'My balance'}</h1><p className="muted">Balance = approved chore pay minus payments made.{isParent ? ' Record each payment so the children can confirm it.' : ''}</p></div></div>
+      <div className="page-head"><div><h1>{isParent ? 'Balances' : 'My balance'}</h1><p className="muted">Balance = approved chore pay plus performance bonuses, minus payments made.{isParent ? ' Record each payment so the children can confirm it.' : ''}</p></div></div>
       <div className="stack">
         {kids.length ? <div className="kids">{kids.map(k => {
           const t = totals(k.id), unconf = pays.filter(p => p.member_id === k.id && !p.confirmed_at).length;
@@ -43,7 +48,7 @@ export function Balances() {
             <article className="kidcard" key={k.id}>
               <header><Avatar m={k} /><h2>{k.display_name}</h2>{unconf > 0 && <span className="pill submitted">{unconf} to confirm</span>}</header>
               <div className="owed"><span className="eyebrow">{t.balance < 0 ? 'Paid ahead' : 'Balance owed'}</span><b>{money(h, Math.abs(t.balance))}</b></div>
-              <dl className="kv"><dt>Earned (approved)</dt><dd>{money(h, t.earned)}</dd><dt>Paid so far</dt><dd>{money(h, t.paid)}</dd>
+              <dl className="kv"><dt>Chore pay (approved)</dt><dd>{money(h, t.chores)}</dd><dt>Performance bonus</dt><dd>{money(h, t.bonus)}</dd><dt>Paid so far</dt><dd>{money(h, t.paid)}</dd>
                 <dt>Awaiting approval</dt><dd>{money(h, t.pending)}</dd><dt>Approved time</dt><dd>{dur(t.mins)}</dd></dl>
               {isParent && <footer><button className="btn primary" onClick={() => setPay(k)}>Record payment</button></footer>}
             </article>);
@@ -61,7 +66,7 @@ export function Balances() {
                   : isParent ? <button className="btn ghost sm" onClick={() => setDel(p)}>Remove</button> : null)}</td></tr>))}</tbody>
           </table></div> : <Empty title="No payments yet"><p className="muted">{isParent ? 'Use Record payment on a child’s card when you pay them. They confirm it here when they get it.' : 'When your parents pay you, it shows here so you can confirm you got it.'}</p></Empty>}
         </section>
-        {wk.length > 0 && <section className="stack" style={{ gap: 10 }}><h2>Approved pay by week</h2><div className="tbl-wrap"><table>
+        {wk.length > 0 && <section className="stack" style={{ gap: 10 }}><h2>Approved pay and bonuses by week</h2><div className="tbl-wrap"><table>
           <thead><tr><th>Week</th>{isParent ? F.kids.map(k => <th key={k.id} className="r">{k.display_name}</th>) : <th className="r">Time</th>}<th className="r">Total</th></tr></thead>
           <tbody>{wk.map(w => { const x = weeks.get(w)!; return (
             <tr key={w}><td>{fmtRange(w)}</td>{isParent ? F.kids.map(k => <td key={k.id} className="r">{x.by.get(k.id) ? money(h, x.by.get(k.id)!) : <span className="muted">–</span>}</td>) : <td className="r">{dur(x.mins)}</td>}
