@@ -63,6 +63,24 @@ PGURL=postgres://postgres@127.0.0.1:5432/postgres npm run test:db
 
 The test creates a throwaway database and loads a small stand-in for Supabase's `auth` schema. It then acts as each kind of user: parent, second parent, each child's device, another family, and someone not signed in. It deletes the database at the end.
 
+## English and Arabic
+
+- The **English / العربية** button in the header switches the whole app, including sign-in, to Arabic and a right-to-left layout. Each device remembers its choice, and devices whose system language is Arabic start in Arabic.
+- Strings are written in English in the code and wrapped in `t()`. Arabic is in `src/i18n.ar.ts`. Run `npm run check:i18n` to list anything not yet translated. Database error messages are translated too.
+- Dates use Arabic month and day names with the Gregorian calendar. Numbers and amounts keep Western digits. Names, chore names and notes stay as the family typed them.
+
+## Where customer data lives
+
+| What | Where |
+| --- | --- |
+| Everything a family enters (members, chores, schedule, timesheets, bonuses, payments) | Supabase Postgres database, project region **eu-west-1 (Ireland)** |
+| Parent emails and password hashes, child-device logins | Supabase Auth (same project, `auth` schema) |
+| Login session, chosen family, language | The browser's local storage on each device |
+| The website files only (no customer data) | Vercel |
+| Code only (no customer data) | GitHub |
+
+Supabase encrypts data at rest and all traffic uses HTTPS. **The Free plan has no automatic backups.** Pro adds daily backups. Until then, take one by hand: Supabase → **Database → Backups** (Pro), or from a computer run `supabase db dump --data-only -f backup.sql` with the Supabase CLI.
+
 ## Bot protection
 
 - **Honeypot:** the New family, I'm a child and password-reset forms have two hidden fields that people never see, plus a minimum fill time (2.5 s). A form that fills either field, or is sent faster than that, is stopped in the browser and nothing reaches Supabase. Sign-in is not trapped.

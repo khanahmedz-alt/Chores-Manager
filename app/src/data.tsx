@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { supabase, errorText } from './supabase';
 import type { BonusMetric, Chore, Entry, Household, Member, Payment, Review, Slot, SlotKind } from './types';
 import { addDays, slotMap, todayIn, weekOf, type SlotMap } from './lib/util';
+import { t } from './i18n';
 
 type Table = 'households' | 'members' | 'chores' | 'schedule_slots' | 'time_entries' | 'payments' | 'bonus_metrics' | 'performance_reviews';
 
@@ -163,7 +164,7 @@ export function FamilyProvider({ householdId, userId, children, fallback }: { ho
 
   if (!value) {
     const notMember = data && data.members && !data.members.some(m => m.user_id === userId && m.active);
-    return <>{fallback({ error: error || (notMember ? 'You are no longer part of this family.' : undefined), retry: () => void reload() })}</>;
+    return <>{fallback({ error: error || (notMember ? t('You are no longer part of this family.') : undefined), retry: () => void reload() })}</>;
   }
   return (
     <Ctx.Provider value={value}>

@@ -1,7 +1,21 @@
 import type { Chore, Household, Slot, Tier } from '../types';
+import { lang, locale, subscribeLang } from '../i18n';
 
-export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-export const DAYS_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+/* Day names follow the app language. These arrays are refilled in place when the language changes
+   (the whole app re-renders then), so every DAYS[i] / DAYS_LONG[i] reads the current language. */
+const DAY_NAMES = {
+  en: { short: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], long: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], letter: ['M', 'T', 'W', 'T', 'F', 'S', 'S'] },
+  ar: { short: ['اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت', 'أحد'], long: ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'], letter: ['ن', 'ث', 'ر', 'خ', 'ج', 'س', 'ح'] },
+};
+export const DAYS: string[] = [];
+export const DAYS_LONG: string[] = [];
+export const DAY_LETTERS: string[] = [];
+function fillDays() {
+  const d = DAY_NAMES[lang()];
+  DAYS.splice(0, 7, ...d.short); DAYS_LONG.splice(0, 7, ...d.long); DAY_LETTERS.splice(0, 7, ...d.letter);
+}
+fillDays();
+subscribeLang(fillDays);
 export const FREQ: Record<string, number[]> = {
   'Daily': [0, 1, 2, 3, 4, 5, 6],
   'Alternate day': [0, 2, 4, 6],
@@ -23,10 +37,10 @@ export const parse = (s: string) => { const [y, m, d] = s.split('-').map(Number)
 export const addDays = (s: string, n: number) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
 export const weekOf = (s: string) => { const d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
 export const dayIdx = (s: string) => (parse(s).getDay() + 6) % 7;
-export const fmtDay = (s: string) => parse(s).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-export const fmtDate = (s: string) => parse(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+export const fmtDay = (s: string) => parse(s).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' });
+export const fmtDate = (s: string) => parse(s).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 export const fmtRange = (w: string) =>
-  `${parse(w).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(w, 6))}`;
+  `${parse(w).toLocaleDateString(locale(), { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(w, 6))}`;
 
 /** Today's date in a time zone, as YYYY-MM-DD. */
 export function todayIn(tz: string): string {
@@ -54,13 +68,17 @@ export function zonedInstant(date: string, hour: number, tz: string): Date {
 export const releaseAt = (h: Household, week: string) => zonedInstant(addDays(week, -7 + Number(h.release_dow)), Number(h.release_hour), h.timezone);
 export const isOpen = (h: Household, week: string) => Date.now() >= releaseAt(h, week).getTime();
 export const fmtRelease = (h: Household, week: string) =>
-  releaseAt(h, week).toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  releaseAt(h, week).toLocaleString(locale(), { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /* ---------- numbers ---------- */
 export const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 export const num = (n: number) => (Number(n) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money = (h: Household, n: number) => { const c = (h.currency || '').trim(); return c ? `${c} ${num(n)}` : num(n); };
-export const dur = (m: number) => { m = Math.round(Number(m) || 0); const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h ${pad(mm)}m` : `${mm}m`; };
+export const dur = (m: number) => {
+  m = Math.round(Number(m) || 0); const h = Math.floor(m / 60), mm = m % 60;
+  if (lang() === 'ar') return h ? `${h} س ${pad(mm)} د` : `${mm} د`;
+  return h ? `${h}h ${pad(mm)}m` : `${mm}m`;
+};
 export const hrs = (h: number) => (Math.round((Number(h) || 0) * 100) / 100).toLocaleString('en-GB', { maximumFractionDigits: 2 });
 
 /* ---------- pay ---------- */
@@ -104,6 +122,11 @@ export function openSlots(chores: Chore[], map: SlotMap, week: string, today: st
   }
   return n;
 }
+
+/** Short month name for a date, in the app language. */
+export const fmtMonth = (s: string) => parse(s).toLocaleDateString(locale(), { month: 'short' });
+/** Date and time of a stored timestamp, in the app language. */
+export const fmtWhen = (isoTime: string, opts: Intl.DateTimeFormatOptions) => new Date(isoTime).toLocaleString(locale(), opts);
 
 /** Dark or light text for a background colour. */
 export function textOn(hex: string) {

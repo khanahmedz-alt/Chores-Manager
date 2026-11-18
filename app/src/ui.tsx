@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { EntryStatus, Member } from './types';
 import { textOn } from './lib/util';
+import { t, lang, setLang, otherLangLabel } from './i18n';
 
 export function Avatar({ m, size = '' }: { m?: Member | null; size?: '' | 'sm' | 'lg' }) {
   if (!m) return null;
@@ -8,7 +9,7 @@ export function Avatar({ m, size = '' }: { m?: Member | null; size?: '' | 'sm' |
 }
 
 export function Pill({ status }: { status: EntryStatus }) {
-  const label = { submitted: 'Awaiting approval', approved: 'Approved', rejected: 'Not approved' }[status];
+  const label = t({ submitted: 'Awaiting approval', approved: 'Approved', rejected: 'Not approved' }[status]);
   return <span className={`pill ${status}`}>{label}</span>;
 }
 
@@ -24,7 +25,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   return (
     <div className="scrim" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title} ref={sheet}>
-        <header><h2>{title}</h2><button className="btn ghost icon" onClick={onClose} aria-label="Close">✕</button></header>
+        <header><h2>{title}</h2><button className="btn ghost icon" onClick={onClose} aria-label={t('Close')}>✕</button></header>
         {children}
       </div>
     </div>
@@ -37,7 +38,7 @@ export function Confirm({ title, text, action, onConfirm, onClose }: { title: st
       <div className="sheet-body">
         <p>{text}</p>
         <div className="sheet-actions">
-          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn ghost" onClick={onClose}>{t('Cancel')}</button>
           <button type="button" className="btn warn" onClick={() => { onClose(); onConfirm(); }}>{action}</button>
         </div>
       </div>
@@ -52,11 +53,23 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 export function WeekBar({ week, onStep, extra }: { week: string; onStep: (n: number) => void; extra?: ReactNode }) {
   return (
     <div className="weekbar">
-      <button className="btn ghost icon" onClick={() => onStep(-1)} aria-label="Previous week">‹</button>
+      <button className="btn ghost icon" onClick={() => onStep(-1)} aria-label={t('Previous week')}>‹</button>
       <span className="range num">{week}</span>
-      <button className="btn ghost icon" onClick={() => onStep(1)} aria-label="Next week">›</button>
+      <button className="btn ghost icon" onClick={() => onStep(1)} aria-label={t('Next week')}>›</button>
       {extra}
     </div>
+  );
+}
+
+/** English / العربية switch for the header. Each device remembers its choice. */
+export function LangToggle() {
+  const other = lang() === 'ar' ? 'en' : 'ar';
+  return (
+    <button type="button" className="lang-toggle" lang={other} onClick={() => setLang(other)}
+      aria-label={other === 'ar' ? 'التبديل إلى العربية' : 'Switch to English'}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" /></svg>
+      <span className="lt-full">{otherLangLabel()}</span><span className="lt-short" aria-hidden="true">{other === 'ar' ? 'ع' : 'EN'}</span>
+    </button>
   );
 }
 
