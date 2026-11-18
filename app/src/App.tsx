@@ -12,6 +12,7 @@ import { Chores } from './views/Chores';
 import { Balances } from './views/Balances';
 import { Family } from './views/Family';
 import { Bonus } from './views/Bonus';
+import { Contact, isContactPath } from './views/Contact';
 import { addDays, isOpen, kidLoad, openSlots, weekOf } from './lib/util';
 import { t, locale, useLang } from './i18n';
 
@@ -50,6 +51,7 @@ export default function App() {
 
   const signOut = async () => { lsSet('cm-household', null); setHh(null); await supabase.auth.signOut(); };
 
+  if (isContactPath()) return <Contact signedInEmail={session?.user?.is_anonymous ? null : session?.user?.email} />;
   if (!configured) return <Setup />;
   if (session === undefined) return <Loading />;
   if (recovering && session) return <NewPassword onDone={() => setRecovering(false)} />;
@@ -107,6 +109,7 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
               {memberships.length > 1 && memberships.map(m => (
                 <button key={m.household_id} role="menuitem" className="menu-item" aria-current={m.household_id === F.household.id} onClick={() => { setMenu(false); switchTo(m.household_id); }}>
                   {m.households?.name || t('Family')}{m.household_id === F.household.id ? ' ✓' : ''}</button>))}
+              <a role="menuitem" className="menu-item" href="/contact">{t('Contact')}</a>
               <button role="menuitem" className="menu-item" onClick={() => { setMenu(false); if (anonymous) setLeaving(true); else signOut(); }}>{t('Sign out')}</button>
             </div>}
           </div></div>
@@ -130,7 +133,7 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
       </main>
       <footer className="foot"><Wave /><div className="foot-bar"><div className="wrap foot-in">
         <span>{new Date().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: F.household.timezone })}</span>
-        <span className="sync"><i />{t('Shared with your family · updates live')} · v{__APP_VERSION__}</span></div></div></footer>
+        <span className="foot-right"><a className="foot-link" href="/contact">{t('Contact')}</a><span className="sync"><i />{t('Shared with your family · updates live')} · v{__APP_VERSION__}</span></span></div></div></footer>
       {leaving && <Confirm title={t('Sign out of this device?')} action={t('Sign out')} onClose={() => setLeaving(false)} onConfirm={signOut}
         text={t('This device will need a new code from a parent to link again. Your timesheets and balance are kept.')} />}
     </>
@@ -145,6 +148,7 @@ function Problem({ text, retry, signOut, action }: { text: string; retry?: () =>
   return (
     <div className="auth"><main className="wrap auth-main"><section className="auth-card stack" style={{ gap: 14 }}>
       <h1>{t('Something needs attention')}</h1><p>{text}</p>
+      <p className="cap"><a href="/contact">{t('Contact us')}</a></p>
       <div className="sheet-actions">{retry && <button className="btn ghost" onClick={retry}>{t('Try again')}</button>}<button className="btn primary" onClick={signOut}>{action || t('Sign out')}</button></div>
     </section></main></div>
   );

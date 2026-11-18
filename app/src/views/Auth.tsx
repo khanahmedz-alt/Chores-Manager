@@ -119,7 +119,7 @@ export function AuthScreen() {
           </form>
         </section>
       </main>
-      <footer className="foot"><Wave /><div className="foot-bar"><div className="wrap foot-in"><span>{t('Track chores, hours and pocket money together.')}</span><span>v{__APP_VERSION__}</span></div></div></footer>
+      <footer className="foot"><Wave /><div className="foot-bar"><div className="wrap foot-in"><span>{t('Track chores, hours and pocket money together.')}</span><span className="foot-right"><a className="foot-link" href="/contact">{t('Contact')}</a><span>v{__APP_VERSION__}</span></span></div></div></footer>
     </div>
   );
 }

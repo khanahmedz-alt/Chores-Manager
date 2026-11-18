@@ -1,0 +1,5 @@
+# Supabase CLI settings for this project (used by `supabase functions deploy`).
+# The contact form is used by signed-out visitors too, so this function does its own checks
+# instead of requiring a signed-in user's token.
+[functions.contact]
+verify_jwt = false

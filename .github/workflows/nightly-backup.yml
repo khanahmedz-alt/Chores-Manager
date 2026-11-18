@@ -1,0 +1,57 @@
+# Nightly encrypted backup of the Supabase database.
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL     the Session pooler connection string from Supabase (Connect → Session pooler)
+#   BACKUP_PASSPHRASE   a long passphrase; keep a copy somewhere safe, it is needed to restore
+# Each run keeps an encrypted backup for 30 days under the run's "Artifacts".
+# Restore steps: app/README.md → Backups.
+name: Nightly database backup
+
+on:
+  schedule:
+    - cron: '17 0 * * *'   # 00:17 UTC = 03:17 in Riyadh, every night
+  workflow_dispatch: {}    # "Run workflow" button for an on-demand backup
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets are set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          [ -n "$SUPABASE_DB_URL" ] || { echo "::error::Add the SUPABASE_DB_URL repository secret"; exit 1; }
+          [ -n "$BACKUP_PASSPHRASE" ] || { echo "::error::Add the BACKUP_PASSPHRASE repository secret"; exit 1; }
+
+      # pg_dump must be at least as new as the server (Supabase runs Postgres 15 or 17).
+      - name: Install the PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump and encrypt
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          PG_BIN: /usr/lib/postgresql/17/bin
+        run: bash app/scripts/backup-db.sh backups
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chores-db-${{ github.run_number }}
+          path: backups/*.gpg
+          retention-days: 30
+          if-no-files-found: error

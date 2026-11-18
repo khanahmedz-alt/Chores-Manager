@@ -9,7 +9,11 @@ The multi-family version of Chores Manager: React + TypeScript (Vite) on the fro
 | `supabase/migrations/0001_init.sql` | Tables, access rules, triggers and the functions the app calls |
 | `supabase/migrations/0002_bonus_and_teams.sql` | Performance bonus (metrics + weekly reviews) and team chores (split pay). Run after 0001 |
 | `supabase/migrations/0003_cleanup_unlinked_logins.sql` | Nightly clean-up of child-device logins that were never linked to a child |
-| `supabase/tests/rls.test.mjs` | 52 checks of the access rules against a real Postgres |
+| `supabase/migrations/0004_contact_messages.sql` | Contact-page messages: table (no client access) and the submit function with the rate limit |
+| `supabase/functions/contact/` | Edge Function behind the Contact page: saves the message and emails the team through Resend |
+| `supabase/tests/rls.test.mjs` | 58 checks of the access rules against a real Postgres |
+| `supabase/tests/contact.test.mjs` | 9 checks of the Contact function (honeypot, validation, rate limit, email failure) |
+| `scripts/backup-db.sh`, `../.github/workflows/nightly-backup.yml` | Nightly encrypted database backup |
 | `src/` | The app: sign-in, family set-up, timesheets, approvals, schedule, chores & pay, balances, family |
 
 ## How people sign in
@@ -35,7 +39,7 @@ The app can't get around these, because the database checks them:
 ## Set up a Supabase project
 
 1. Create a project at supabase.com. A region near your users is best (e.g. `eu-west-2` London or `me-central-1` UAE).
-2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql` and `0003_cleanup_unlinked_logins.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
+2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql` and `0004_contact_messages.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
 3. **Authentication → Sign In / Providers**:
    - Email: on. Keep "Confirm email" on for production.
    - **Allow anonymous sign-ins: on.** Children's devices need this.
@@ -58,7 +62,7 @@ npm run dev                 # http://localhost:5173
 You need a local Postgres 15 or 16.
 
 ```sh
-PGURL=postgres://postgres@127.0.0.1:5432/postgres npm run test:db
+PGURL=postgres://postgres@127.0.0.1:5432/postgres npm run test:db   # access rules + Contact function
 ```
 
 The test creates a throwaway database and loads a small stand-in for Supabase's `auth` schema. It then acts as each kind of user: parent, second parent, each child's device, another family, and someone not signed in. It deletes the database at the end.
@@ -68,6 +72,83 @@ The test creates a throwaway database and loads a small stand-in for Supabase's 
 - The **English / العربية** button in the header switches the whole app, including sign-in, to Arabic and a right-to-left layout. Each device remembers its choice, and devices whose system language is Arabic start in Arabic.
 - Strings are written in English in the code and wrapped in `t()`. Arabic is in `src/i18n.ar.ts`. Run `npm run check:i18n` to list anything not yet translated. Database error messages are translated too.
 - Dates use Arabic month and day names with the Gregorian calendar. Numbers and amounts keep Western digits. Names, chore names and notes stay as the family typed them.
+
+## Contact page
+
+`/contact` is open to everyone, signed in or not. It's linked from every footer and, when signed in, from the name menu in the header. The form has three fields:
+- **Email:** filled in for a signed-in parent, and still editable.
+- **Topic:** Support, Billing, Feedback, Privacy / Data request or Other.
+- **Message:** 10–5,000 characters.
+
+Sending calls the `contact` Edge Function, which:
+1. Silently drops the submission if the hidden honeypot field is filled.
+2. Checks the fields and applies the rate limit: 5 messages per email or per IP address in any hour. The IP is only stored as a salted hash.
+3. Saves the message in `contact_messages` with status `new`, plus the sender's user and family ID if they're signed in. Browsers can't read or write this table.
+4. Emails it through Resend:
+   - **From:** `Mizala Contact <noreply@mizala.ai>`
+   - **To:** `contact@mizala.ai`
+   - **Reply-to:** the sender
+   - **Subject:** `[Topic] New contact message`
+
+   If the email fails, the message is still saved, the error is logged and stored in `email_error`, and the visitor still sees "Thanks, we'll reply by email".
+
+The Resend API key lives only in the function's secrets. To add CAPTCHA later, look for `TODO(captcha)` in `src/views/Contact.tsx` and `supabase/functions/contact/index.ts`.
+
+Read and manage messages in Supabase → Table Editor → `contact_messages`. Set `status` to `replied`, `closed` or `spam` as you go.
+
+### Setting it up
+
+1. **Run the migration:** in the SQL Editor, run `supabase/migrations/0004_contact_messages.sql`.
+2. **Verify mizala.ai in Resend** (resend.com → Domains → Add domain → `mizala.ai`, region **eu-west-1 Ireland**). Resend then shows the exact records to add at your DNS provider. They look like this:
+
+   | Type | Name (host) | Value | Notes |
+   | --- | --- | --- | --- |
+   | TXT | `resend._domainkey` | `p=MIGfMA0G…` (long key from Resend) | DKIM: proves the email is from you |
+   | MX | `send` | `feedback-smtp.eu-west-1.amazonses.com`, priority `10` | Bounce handling on the `send.` subdomain |
+   | TXT | `send` | `v=spf1 include:amazonses.com ~all` | SPF for the `send.` subdomain |
+   | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:contact@mizala.ai` | Recommended; tighten to `p=quarantine` later |
+
+   These sit on the `send.` and `resend._domainkey` sub-names, so they don't touch your normal email (the MX records on `mizala.ai` itself). Click **Verify** in Resend once they're added; it can take a few minutes to a few hours.
+3. **Create an API key:** in Resend, go to API Keys → Create, with permission "Sending access", limited to the domain `mizala.ai`.
+4. **Set the function's secrets:** Supabase → Edge Functions → Secrets → Add. Or, with the CLI:
+   ```sh
+   supabase secrets set RESEND_API_KEY=re_xxxxxxxx CONTACT_IP_SALT="$(openssl rand -hex 32)" --project-ref twisallsmlaoazdcpzxc
+   ```
+   You can also set `ALLOWED_ORIGINS=https://your-app.vercel.app`, so only your site can call the function.
+5. **Deploy the function.** JWT checking must be off, because signed-out visitors use the form; the function does its own checks.
+   ```sh
+   supabase login
+   supabase functions deploy contact --no-verify-jwt --project-ref twisallsmlaoazdcpzxc
+   ```
+   Without the CLI, go to Supabase → Edge Functions → Deploy a new function → Via editor. Name it `contact`, add both files from `supabase/functions/contact/` (`index.ts` and `handler.ts`), and turn **Enforce JWT verification** off in the function's settings.
+6. **Make sure the `contact@mizala.ai` inbox exists** and can receive mail.
+7. **Test it:** send a message from `/contact`. It should arrive at contact@mizala.ai, and the row should show `email_sent_at`. If `email_error` is filled in instead, it holds Resend's reason. Function logs are under Edge Functions → contact → Logs.
+
+## Backups
+
+The GitHub Actions workflow `.github/workflows/nightly-backup.yml` runs every night at 00:17 UTC (03:17 Riyadh). Each backup is encrypted and kept for 30 days under that run's **Artifacts**. You can also run it any time with **Actions → Nightly database backup → Run workflow**. Each backup holds:
+- **App data:** all of it, in the `public` schema: tables, data, functions and access rules.
+- **Logins:** `auth.users` and `auth.identities`, data only.
+- **Row counts:** a list of rows per table, to check a restore against.
+
+Setting it up (once):
+1. **Database connection string:** in Supabase, go to **Connect** → **Session pooler**, copy the connection string, and put in your database password. Use the session pooler: the direct address doesn't work from GitHub.
+2. **Repository secrets:** in GitHub, go to the repo → **Settings → Secrets and variables → Actions → New repository secret**, and add:
+   - `SUPABASE_DB_URL`: the connection string from step 1.
+   - `BACKUP_PASSPHRASE`: a long passphrase. **Store it in your password manager.** Without it, the backups can't be opened.
+3. **Test run:** run the workflow once by hand and check it goes green.
+
+GitHub pauses scheduled workflows in a repo with no activity for 60 days. If that happens, re-enable it on the Actions tab.
+
+To restore, starting from a downloaded artifact (a zip containing `chores-db-….tgz.gpg`):
+```sh
+gpg -d chores-db-2026-11-19T0017Z.tgz.gpg | tar -xz          # asks for BACKUP_PASSPHRASE
+cat counts.txt                                                # what you should end up with
+# Into a NEW, empty Supabase project (recommended), or the same one after a disaster:
+pg_restore -d "$SUPABASE_DB_URL" --no-owner --data-only auth.dump
+pg_restore -d "$SUPABASE_DB_URL" --no-owner --clean --if-exists public.dump
+```
+Then turn on anonymous sign-ins and pg_cron again in the new project, and point Vercel's `VITE_SUPABASE_*` variables at it. Restoring with `--clean` replaces what's in `public`, so restore into a fresh project unless you mean to overwrite.
 
 ## Where customer data lives
 
@@ -79,7 +160,7 @@ The test creates a throwaway database and loads a small stand-in for Supabase's 
 | The website files only (no customer data) | Vercel |
 | Code only (no customer data) | GitHub |
 
-Supabase encrypts data at rest and all traffic uses HTTPS. **The Free plan has no automatic backups.** Pro adds daily backups. Until then, take one by hand: Supabase → **Database → Backups** (Pro), or from a computer run `supabase db dump --data-only -f backup.sql` with the Supabase CLI.
+Supabase encrypts data at rest and all traffic uses HTTPS. **The Free plan has no automatic backups**, so the nightly GitHub backup below covers it. Supabase Pro adds its own daily backups and point-in-time recovery.
 
 ## Bot protection
 
