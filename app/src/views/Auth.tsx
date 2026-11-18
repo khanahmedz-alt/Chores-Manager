@@ -1,8 +1,25 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { supabase, errorText } from '../supabase';
 import { Mark, Wave } from '../ui';
 
 type Mode = 'signin' | 'signup' | 'child' | 'reset';
+
+/* Bot trap for the forms that create something (a parent account, a child-device login, a reset email):
+   two fields people never see or reach, which form-filling bots tend to fill in, and a minimum time a
+   person needs to fill the form. Sign-in is left alone: it only works for existing accounts, and
+   password managers fill it in instantly. This stops scripted form-fillers; Supabase's rate limits and
+   the nightly clean-up of unlinked child-device logins cover anyone calling the API directly. */
+const MIN_FILL_MS = 2500;
+function Honeypot({ refs }: { refs: React.RefObject<HTMLInputElement | null>[] }) {
+  const names = ['company_website', 'contact_fax'];
+  return (
+    <div className="hp" aria-hidden="true">
+      {refs.map((r, i) => (
+        <label key={names[i]}>Leave this empty<input ref={r} type="text" name={names[i]} tabIndex={-1} autoComplete="off" defaultValue="" /></label>
+      ))}
+    </div>
+  );
+}
 
 /** Signed-out screen: parents sign in with email; children link their device with a code. */
 export function AuthScreen() {
@@ -13,6 +30,19 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'err' | 'ok'; text: string } | null>(null);
   const [canResend, setCanResend] = useState(false);
+  const hp1 = useRef<HTMLInputElement>(null), hp2 = useRef<HTMLInputElement>(null);
+  const shownAt = useRef(Date.now());
+  const switchMode = (m: Mode) => { setMode(m); setMsg(null); shownAt.current = Date.now(); };
+  /** True when the form looks bot-filled. Shows a gentle retry message instead of sending anything. */
+  const trapped = () => {
+    const filled = [hp1, hp2].some(r => (r.current?.value || '') !== '');
+    const tooFast = Date.now() - shownAt.current < MIN_FILL_MS;
+    if (!filled && !tooFast) return false;
+    if (hp1.current) hp1.current.value = ''; if (hp2.current) hp2.current.value = '';
+    shownAt.current = Date.now();
+    setMsg({ kind: 'err', text: 'Something didn’t look right. Please check the details and try again.' });
+    return true;
+  };
 
   async function resend() {
     setBusy(true);
@@ -22,7 +52,9 @@ export function AuthScreen() {
   }
 
   async function submit(e: FormEvent) {
-    e.preventDefault(); setMsg(null); setCanResend(false); setBusy(true);
+    e.preventDefault(); setMsg(null); setCanResend(false);
+    if (mode !== 'signin' && trapped()) return;
+    setBusy(true);
     try {
       if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -60,7 +92,7 @@ export function AuthScreen() {
       <main className="wrap auth-main">
         <section className="auth-card">
           <div className="seg auth-seg" role="tablist">
-            {tabs.map(([m, l]) => <button key={m} role="tab" aria-pressed={mode === m || (m === 'signin' && mode === 'reset')} onClick={() => { setMode(m); setMsg(null); }}>{l}</button>)}
+            {tabs.map(([m, l]) => <button key={m} role="tab" aria-pressed={mode === m || (m === 'signin' && mode === 'reset')} onClick={() => switchMode(m)}>{l}</button>)}
           </div>
           <form onSubmit={submit} className="stack" style={{ gap: 14 }} noValidate>
             {mode === 'child' ? <>
@@ -75,13 +107,14 @@ export function AuthScreen() {
               <label className="field"><span>Email</span><input type="text" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
               {mode !== 'reset' && <label className="field"><span>Password</span><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} />{mode === 'signup' && <small>At least 8 characters.</small>}</label>}
             </>}
+            {mode !== 'signin' && <Honeypot refs={[hp1, hp2]} />}
             {msg && <p className={msg.kind === 'err' ? 'err' : 'okmsg'} role="alert">{msg.text}</p>}
             {canResend && email.trim() && <button type="button" className="btn ghost" onClick={resend} disabled={busy}>Send the confirmation email again</button>}
             <button className="btn primary" type="submit" disabled={busy}>
               {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Link this device'}
             </button>
-            {mode === 'signin' && <button type="button" className="link" onClick={() => { setMode('reset'); setMsg(null); }}>Forgot your password?</button>}
-            {mode === 'reset' && <button type="button" className="link" onClick={() => { setMode('signin'); setMsg(null); }}>Back to sign in</button>}
+            {mode === 'signin' && <button type="button" className="link" onClick={() => switchMode('reset')}>Forgot your password?</button>}
+            {mode === 'reset' && <button type="button" className="link" onClick={() => switchMode('signin')}>Back to sign in</button>}
           </form>
         </section>
       </main>

@@ -233,6 +233,18 @@ assert.equal((await as('ayesha_phone', `select count(*)::int n from public.perfo
 await fails('mustafa_phone', `insert into public.performance_reviews (household_id, member_id, week_start, ratings) values ($1, $2, ($3::date + 14), '[]')`, [hh, MUSTAFA, thisWeek], /row-level security/);
 ok('a child sees only their own bonus and cannot award one');
 
+// ---------------------------------------------------------------- unlinked child-device logins
+const stale = randomUUID(), fresh = randomUUID();
+await db.query(`insert into auth.users (id, is_anonymous, created_at) values ($1, true, now() - interval '2 days'), ($2, true, now())`, [stale, fresh]);
+await db.query(`update auth.users set created_at = now() - interval '30 days' where id in ($1, $2, $3)`, [users.mother.id, users.ayesha_phone.id, users.mustafa_phone.id]);
+await fails('mother', `select public.cleanup_unlinked_child_logins()`, [], /permission denied/);
+ok('the app’s users cannot run the clean-up');
+const removed = (await db.query(`select public.cleanup_unlinked_child_logins() n`)).rows[0].n;
+const left = (await db.query(`select id from auth.users where id = any($1)`, [[stale, fresh, users.mother.id, users.ayesha_phone.id, users.mustafa_phone.id]])).rows.map(r => r.id);
+assert.equal(removed, 1); assert.ok(!left.includes(stale));
+assert.ok(left.includes(fresh) && left.includes(users.mother.id) && left.includes(users.ayesha_phone.id) && left.includes(users.mustafa_phone.id));
+ok('the clean-up deletes only day-old child-device logins never linked to a child; parents and linked devices stay');
+
 // ---------------------------------------------------------------- members
 await fails('mother', `update public.members set role = 'child' where user_id = $1`, [users.mother.id], /own role/);
 ok('a parent cannot demote themselves');

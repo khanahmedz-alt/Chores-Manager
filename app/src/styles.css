@@ -351,3 +351,6 @@ button.banner { cursor: pointer; width: 100%; }
 .team-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; font-weight: 600; color: var(--ink); }
 .sheet .kidchips { margin-bottom: 2px; }
 @media (max-width: 560px) { .tiers { grid-template-columns: 1fr; } }
+
+/* Bot trap: kept in the page for bots, out of sight and reach for people */
+.hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
