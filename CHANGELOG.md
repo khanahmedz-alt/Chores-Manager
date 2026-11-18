@@ -13,8 +13,8 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
-## 1.1.0 (in testing)
-Branch: `claude/preview-bonus-teams`, not live yet.
+## 1.1.0 (18 Nov 2026, live)
+Backup: branch `release/v1.1.0`.
 
 **New**
 - **English / العربية switch** in the header of every screen, including sign-in. The whole app, dates and layout switch to Arabic (right-to-left), and each device remembers its choice.
@@ -26,7 +26,7 @@ Branch: `claude/preview-bonus-teams`, not live yet.
 1. Database → Extensions → switch on **pg_cron**.
 2. Run `app/supabase/migrations/0003_cleanup_unlinked_logins.sql`.
 
-## 1.0.0 (18 Nov 2026, live)
+## 1.0.0 (18 Nov 2026)
 Backup: branch `release/v1.0.0`.
 
 First live multi-family release, on Supabase (database and logins) and Vercel (website).
