@@ -81,7 +81,9 @@ function cors(req: Request, allowed?: string[]): Record<string, string> {
   const allow = !allowed || allowed.length === 0 || allowed.includes('*') ? '*' : (allowed.includes(origin) ? origin : allowed[0]);
   return {
     'Access-Control-Allow-Origin': allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    // Every header the Supabase SDK may send (kept in line with @supabase/supabase-js/cors).
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-retry-count, x-region, traceparent, tracestate, baggage',
+    'Access-Control-Max-Age': '86400',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };

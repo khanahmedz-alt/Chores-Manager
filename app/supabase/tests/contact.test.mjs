@@ -111,6 +111,7 @@ assert.equal(r.status, 500); assert.equal(r.error, 'server');
 ok('if the message cannot be saved, the visitor gets an error (not a false success)');
 const opt = await call(null, { method: 'OPTIONS' });
 assert.equal(opt.status, 200); assert.equal(opt.headers.get('access-control-allow-origin'), '*');
+for (const h of ['authorization', 'x-client-info', 'apikey', 'content-type', 'x-region', 'traceparent']) assert.ok(opt.headers.get('access-control-allow-headers').includes(h), h);
 assert.equal((await call(null, { method: 'GET' })).status, 405);
 ok('browser pre-flight (CORS) is answered; methods other than POST are refused');
 
