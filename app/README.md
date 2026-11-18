@@ -7,13 +7,19 @@ The multi-family version of Chores Manager: React + TypeScript (Vite) on the fro
 | Path | What it is |
 | --- | --- |
 | `supabase/migrations/0001_init.sql` | Tables, access rules, triggers and the functions the app calls |
-| `supabase/tests/rls.test.mjs` | 36 checks of the access rules against a real Postgres |
+| `supabase/migrations/0002_bonus_and_teams.sql` | Performance bonus (metrics + weekly reviews) and team chores (split pay). Run after 0001 |
+| `supabase/tests/rls.test.mjs` | 50 checks of the access rules against a real Postgres |
 | `src/` | The app: sign-in, family set-up, timesheets, approvals, schedule, chores & pay, balances, family |
 
 ## How people sign in
 
 - **Parents** use an email and password. The first parent creates the family. They invite the second parent from **Family → Invite a parent**, which gives a one-time code. The second parent creates their own account, then chooses **Join with a code**.
 - **Children** don't need an email. A parent adds the child on **Family**, then taps **Device code**. On the child's phone or tablet, the child chooses **I'm a child** and types the code. That device gets its own anonymous login, linked to that child. If a phone is lost, use **Unlink** and make a new code.
+
+## Performance bonus and team chores
+
+- **Performance bonus:** parents set metrics on the **Bonus** page (e.g. School grades, max 10%), with what earns each level. When reviewing a week (on **Approvals** or **Bonus**), each metric is rated **Meets** (0% of its max), **Good** (25%) or **Excelled** (100%). The bonus is that % of the child's approved chore pay for the week, and it's added to their balance.
+- **Team chores:** when logging time, a child can pick siblings who helped. Everyone gets the same time; the chore's pay is split equally. Only the child who logged it, or a parent, can change it, and approving it approves it for the whole team.
 
 ## What the database enforces
 
@@ -28,7 +34,7 @@ The app can't get around these, because the database checks them:
 ## Set up a Supabase project
 
 1. Create a project at supabase.com. A region near your users is best (e.g. `eu-west-2` London or `me-central-1` UAE).
-2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. If you use the Supabase CLI, run `supabase db push` instead.
+2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`. If you use the Supabase CLI, run `supabase db push` instead.
 3. **Authentication → Sign In / Providers**:
    - Email: on. Keep "Confirm email" on for production.
    - **Allow anonymous sign-ins: on.** Children's devices need this.

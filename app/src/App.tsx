@@ -11,6 +11,7 @@ import { Schedule } from './views/Schedule';
 import { Chores } from './views/Chores';
 import { Balances } from './views/Balances';
 import { Family } from './views/Family';
+import { Bonus } from './views/Bonus';
 import { addDays, isOpen, kidLoad, openSlots, weekOf } from './lib/util';
 
 const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -69,8 +70,8 @@ export default function App() {
 }
 
 const VIEWS = {
-  parent: [['approvals', 'Approvals'], ['timesheets', 'Timesheets'], ['schedule', 'Schedule'], ['chores', 'Chores & pay'], ['balances', 'Balances'], ['family', 'Family']],
-  child: [['my-week', 'My week'], ['schedule', 'Schedule'], ['chores', 'Chores & pay'], ['balance', 'My balance']],
+  parent: [['approvals', 'Approvals'], ['timesheets', 'Timesheets'], ['schedule', 'Schedule'], ['chores', 'Chores & pay'], ['bonus', 'Bonus'], ['balances', 'Balances'], ['family', 'Family']],
+  child: [['my-week', 'My week'], ['schedule', 'Schedule'], ['chores', 'Chores & pay'], ['bonus', 'Bonus'], ['balance', 'My balance']],
 } as const;
 
 function useHash() {
@@ -120,6 +121,7 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
         {view === 'approvals' && <Approvals />}
         {view === 'schedule' && <Schedule key={schedWeek || 'default'} initialWeek={schedWeek} />}
         {view === 'chores' && <Chores />}
+        {view === 'bonus' && <Bonus />}
         {(view === 'balances' || view === 'balance') && <Balances />}
         {view === 'family' && <Family />}
       </main>

@@ -253,7 +253,7 @@ textarea { min-height: 70px; resize: vertical; }
 .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--card); color: var(--heading); box-shadow: var(--shadow); }
 .preview { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--raised); font-variant-numeric: tabular-nums; }
-.preview b { font-size: 20px; color: var(--heading); }
+.preview b { font-size: 20px; color: var(--heading); white-space: nowrap; }
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .sheet-actions .left { margin-right: auto; }
 .optlist { display: grid; gap: 8px; }
@@ -319,3 +319,35 @@ button.banner { cursor: pointer; width: 100%; }
 .swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: pointer; font-weight: 700; }
 .swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--heading); }
 @media (max-width: 560px) { .auth-card { padding: 20px; } .bigcode { font-size: 32px; } }
+
+/* Performance bonus */
+.tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tier { border-radius: var(--r-md); padding: 12px 14px; display: grid; gap: 2px; background: var(--raised); }
+.tier b { color: var(--heading); font-size: 17px; }
+.tier span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.tier.tier-good { background: color-mix(in srgb, var(--brand) 16%, var(--card)); }
+.tier.tier-excelled { background: var(--brand); }
+.tier.tier-excelled b, .tier.tier-excelled span { color: #04281a; }
+.tierpill { margin: 2px 4px 2px 0; }
+.tierpill.tier-meets { background: var(--raised); color: var(--muted); }
+.tierpill.tier-good { background: color-mix(in srgb, var(--brand) 20%, var(--card)); color: var(--ok-fg); }
+.tierpill.tier-excelled { background: var(--brand); color: #04281a; }
+.ratings { display: grid; gap: 12px; }
+.rating { display: grid; gap: 6px; padding: 12px; border-radius: var(--r-sm); background: var(--raised); }
+.rating-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rating-head b { color: var(--heading); }
+.tierseg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--card); }
+.tierseg button { display: grid; gap: 0; justify-items: center; padding: 6px 4px; }
+.tierseg button small { font-size: 11px; font-weight: 600; }
+.tierseg button.tier-excelled[aria-pressed="true"] { background: var(--brand); color: #04281a; }
+.tierseg button.tier-good[aria-pressed="true"] { background: color-mix(in srgb, var(--brand) 25%, var(--card)); color: var(--heading); }
+.suffix { display: flex; align-items: center; gap: 6px; }
+.suffix span { font-weight: 700; color: var(--muted); }
+.warn-note { color: var(--warn-fg); font-size: 13px; font-weight: 600; }
+
+/* Team chores */
+.pill.team { background: color-mix(in srgb, var(--purple) 16%, var(--card)); color: var(--heading); }
+.chip.with-av { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; }
+.team-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; font-weight: 600; color: var(--ink); }
+.sheet .kidchips { margin-bottom: 2px; }
+@media (max-width: 560px) { .tiers { grid-template-columns: 1fr; } }
