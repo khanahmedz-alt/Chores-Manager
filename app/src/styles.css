@@ -379,3 +379,21 @@ button.banner { cursor: pointer; width: 100%; }
   .lang-toggle .lt-short { display: inline; }
   .me span { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* Contact link and page */
+.foot-right { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.foot-link { color: var(--on-navy); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.foot-link:hover { color: var(--brand-mist); }
+a.menu-item { display: block; text-decoration: none; }
+.mark-link { color: inherit; text-decoration: none; }
+.contact-card { width: min(100%, 560px); }
+.contact textarea { min-height: 160px; font-size: 16px; line-height: 1.5; }
+.contact input, .contact select { font-size: 16px; } /* 16px stops iPhones zooming into the field */
+.contact-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+.contact-meta .err { font-size: 13px; }
+.field small.err { font-size: 13px; }
+[aria-invalid="true"] { border-color: var(--bad-fg) !important; box-shadow: 0 0 0 1px var(--bad-fg); }
+.contact-send { width: 100%; min-height: 48px; font-size: 16px; }
+.contact-done { text-align: start; }
+.done-badge { width: 56px; height: 56px; border-radius: 50%; background: var(--brand); display: grid; place-items: center; }
+.contact .cap a, .auth-card .cap a { color: var(--brand-ink); font-weight: 600; text-underline-offset: 3px; }

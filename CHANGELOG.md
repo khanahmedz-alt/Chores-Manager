@@ -13,6 +13,21 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
+## 1.2.0 (in testing)
+Branch: `claude/preview-bonus-teams`, not live yet.
+
+**New**
+- **Contact page** at `/contact`, linked from every footer and the header menu, signed in or out. The form has email (filled in for parents), topic and message fields. It saves to `contact_messages` and emails contact@mizala.ai through Resend, and if the email fails the message is still saved.
+- **Spam protection on Contact:** a honeypot field, and a limit of 5 messages per email or per IP in any hour.
+- **Nightly encrypted database backup** with GitHub Actions, kept for 30 days.
+
+**Database and set-up steps**
+1. Run `app/supabase/migrations/0004_contact_messages.sql`.
+2. Verify mizala.ai in Resend (DNS records), set the `RESEND_API_KEY` and `CONTACT_IP_SALT` secrets, and deploy the `contact` function with `--no-verify-jwt`.
+3. Add the `SUPABASE_DB_URL` and `BACKUP_PASSPHRASE` secrets in GitHub for the backup.
+
+See app/README.md → "Contact page" and "Backups".
+
 ## 1.1.0 (18 Nov 2026, live)
 Backup: branch `release/v1.1.0`.
 

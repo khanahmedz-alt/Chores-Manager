@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase, errorText } from '../supabase';
-import { LangToggle, Mark } from '../ui';
+import { LangToggle, Mark, Wave } from '../ui';
 import { t } from '../i18n';
 
 const CURRENCIES = ['SAR', '£', '$', '€', 'AED', ''];
@@ -61,6 +61,7 @@ export function Onboarding({ onReady, onSignOut }: { onReady: (householdId: stri
           </form>
         </section>
       </main>
+      <footer className="foot"><Wave /><div className="foot-bar"><div className="wrap foot-in"><span>{t('Track chores, hours and pocket money together.')}</span><span className="foot-right"><a className="foot-link" href="/contact">{t('Contact')}</a><span>v{__APP_VERSION__}</span></span></div></div></footer>
     </div>
   );
 }

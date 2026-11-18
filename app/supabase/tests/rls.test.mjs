@@ -35,6 +35,8 @@ async function as(name, sql, params = []) {
   try {
     if (name === 'anon') {
       await db.query('set local role anon');
+    } else if (name === 'service') {
+      await db.query('set local role service_role');
     } else {
       const u = users[name];
       await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: u.id, role: 'authenticated', is_anonymous: u.anonymous })]);
@@ -244,6 +246,36 @@ const left = (await db.query(`select id from auth.users where id = any($1)`, [[s
 assert.equal(removed, 1); assert.ok(!left.includes(stale));
 assert.ok(left.includes(fresh) && left.includes(users.mother.id) && left.includes(users.ayesha_phone.id) && left.includes(users.mustafa_phone.id));
 ok('the clean-up deletes only day-old child-device logins never linked to a child; parents and linked devices stay');
+
+// ---------------------------------------------------------------- contact messages
+const submit = (who, email, topic, message, ip = null) => as(who, `select public.submit_contact_message($1, $2, $3, null, null, $4) id`, [email, topic, message, ip]);
+for (const who of ['anon', 'mother', 'mustafa_phone']) {
+  await fails(who, `select * from public.contact_messages`, [], /permission denied/);
+  await fails(who, `insert into public.contact_messages (email, topic, message) values ('a@b.co', 'Other', 'hello there friend')`, [], /permission denied/);
+  await fails(who, `select public.submit_contact_message('a@b.co', 'Other', 'hello there friend')`, [], /permission denied/);
+}
+ok('signed-out visitors, parents and children cannot read, write or call the contact table directly');
+await fails('service', `select public.submit_contact_message($1, 'Support', 'long enough message')`, [''], /valid email/);
+await fails('service', `select public.submit_contact_message($1, 'Support', 'long enough message')`, ['not-an-email'], /valid email/);
+await fails('service', `select public.submit_contact_message('a@b.co', $1, 'long enough message')`, [null], /Choose a topic/);
+await fails('service', `select public.submit_contact_message('a@b.co', $1, 'long enough message')`, ['Pizza'], /Choose a topic/);
+await fails('service', `select public.submit_contact_message('a@b.co', 'Other', $1)`, [null], /10 to 5,000/);
+await fails('service', `select public.submit_contact_message('a@b.co', 'Other', $1)`, ['too short'], /10 to 5,000/);
+await fails('service', `select public.submit_contact_message('a@b.co', 'Other', $1)`, ['x'.repeat(5001)], /10 to 5,000/);
+ok('missing or invalid email, topic and message are rejected (message 10–5,000 characters)');
+for (let i = 0; i < 5; i++) await submit('service', 'Parent@Example.com', 'Support', `Message number ${i} please help`, 'ip-a');
+await fails('service', `select public.submit_contact_message('parent@example.com', 'Support', 'sixth message this hour', null, null, 'ip-b')`, [], /Too many/);
+ok('the 6th message from the same email within an hour is refused (case-insensitive)');
+for (let i = 0; i < 5; i++) await submit('service', `kid${i}@example.com`, 'Feedback', 'Same network message', 'ip-c');
+await fails('service', `select public.submit_contact_message('new@example.com', 'Feedback', 'from the same IP again', null, null, 'ip-c')`, [], /Too many/);
+await submit('service', 'other@example.com', 'Other', 'A different person entirely', 'ip-d');
+ok('the 6th message from the same IP within an hour is refused; other senders are not affected');
+await db.query(`update public.contact_messages set created_at = now() - interval '61 minutes' where lower(email) = 'parent@example.com'`);
+await submit('service', 'parent@example.com', 'Support', 'An hour later this works', 'ip-a');
+ok('after an hour the sender can write again');
+const saved = (await db.query(`select status, email, user_id from public.contact_messages where email = 'other@example.com'`)).rows[0];
+assert.equal(saved.status, 'new'); assert.equal(saved.user_id, null);
+ok('saved messages start with status "new"');
 
 // ---------------------------------------------------------------- members
 await fails('mother', `update public.members set role = 'child' where user_id = $1`, [users.mother.id], /own role/);

@@ -1,14 +1,14 @@
 {
   "name": "chores-manager",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc",
-    "test:db": "node supabase/tests/rls.test.mjs",
+    "test:db": "node supabase/tests/rls.test.mjs && node --experimental-strip-types --no-warnings supabase/tests/contact.test.mjs",
     "check:i18n": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
