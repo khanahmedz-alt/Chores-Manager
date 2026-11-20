@@ -8,10 +8,9 @@ import { Onboarding } from './views/Onboarding';
 import { MyWeek, Timesheets } from './views/Timesheet';
 import { Approvals } from './views/Approvals';
 import { Schedule } from './views/Schedule';
-import { Chores } from './views/Chores';
 import { Balances } from './views/Balances';
 import { Family } from './views/Family';
-import { Bonus } from './views/Bonus';
+import { Remuneration } from './views/Remuneration';
 import { Contact, isContactPath } from './views/Contact';
 import { addDays, isOpen, kidLoad, openSlots, weekOf } from './lib/util';
 import { t, locale, useLang } from './i18n';
@@ -74,8 +73,8 @@ export default function App() {
 }
 
 const VIEWS = {
-  parent: [['approvals', 'Approvals'], ['timesheets', 'Timesheets'], ['schedule', 'Schedule'], ['chores', 'Chores & pay'], ['bonus', 'Bonus'], ['balances', 'Balances'], ['family', 'Family']] /* labels go through t() when shown */,
-  child: [['my-week', 'My week'], ['schedule', 'Schedule'], ['chores', 'Chores & pay'], ['bonus', 'Bonus'], ['balance', 'My balance']],
+  parent: [['approvals', 'Approvals'], ['timesheets', 'Timesheets'], ['schedule', 'Schedule'], ['remuneration', 'Remuneration'], ['balances', 'Balances'], ['family', 'Family']] /* labels go through t() when shown */,
+  child: [['my-week', 'My week'], ['schedule', 'Schedule'], ['remuneration', 'Remuneration'], ['balance', 'My balance']],
 } as const;
 
 function useHash() {
@@ -91,7 +90,8 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
   const [leaving, setLeaving] = useState(false);
   const [schedWeek, setSchedWeek] = useState<string | undefined>();
   const list = VIEWS[F.me.role];
-  const view = list.some(v => v[0] === hash) ? hash : list[0][0];
+  const wanted = hash === 'chores' || hash === 'bonus' ? 'remuneration' : hash; // old links
+  const view = list.some(v => v[0] === wanted) ? wanted : list[0][0];
   const pending = F.entries.filter(e => e.status === 'submitted').length;
   const nw = addDays(weekOf(F.today), 7);
   const newWeek = !F.isParent && isOpen(F.household, nw) && openSlots(F.activeChores, F.slotIndex, nw, F.today) > 0 && kidLoad(F.household, F.activeChores, F.slotIndex, nw, F.me.id).mins === 0;
@@ -126,8 +126,7 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
         {view === 'timesheets' && <Timesheets />}
         {view === 'approvals' && <Approvals />}
         {view === 'schedule' && <Schedule key={schedWeek || 'default'} initialWeek={schedWeek} />}
-        {view === 'chores' && <Chores />}
-        {view === 'bonus' && <Bonus />}
+        {view === 'remuneration' && <Remuneration />}
         {(view === 'balances' || view === 'balance') && <Balances />}
         {view === 'family' && <Family />}
       </main>

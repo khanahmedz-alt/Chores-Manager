@@ -63,7 +63,7 @@ export function Approvals() {
                 </div>
               </div>);
           })}</div>
-            : <p className="empty-note">{t('First set up what you reward (school grades, homework…) on the Bonus page.')} <a href="#bonus">{t('Open Bonus')}</a></p>}
+            : <p className="empty-note">{t('First set up what you reward (school grades, homework…) on the Remuneration page.')} <a href="#remuneration">{t('Open Remuneration')}</a></p>}
           {hasMetrics && <p className="cap" style={{ marginTop: 10 }}>{t('Last week')}: {fmtRange(lw)} · {t('This week')}: {fmtRange(cw)}</p>}
         </section>}
         {recent.length > 0 && <section className="panel flat"><div className="panel-head"><h2>{t('Recently reviewed')}</h2></div>

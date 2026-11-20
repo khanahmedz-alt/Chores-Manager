@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '../supabase';
 import { useFamily } from '../data';
-import { Avatar, Confirm, Empty, Modal } from '../ui';
+import { Avatar, Confirm, Empty, Modal, ScrollBox } from '../ui';
 import type { BonusMetric, Member, Review, Tier } from '../types';
 import { TIERS, addDays, fmtRange, money, pct, r2, tierFactor, weekOf } from '../lib/util';
 import { t, count } from '../i18n';
@@ -13,6 +13,7 @@ const EXAMPLES = [
 ];
 
 /** The family's bonus metrics (parents edit; children read) and the reviews so far. */
+/** Performance bonus. Shown as a section of the Remuneration page. */
 export function Bonus() {
   const F = useFamily();
   const { household: h, isParent } = F;
@@ -27,7 +28,7 @@ export function Bonus() {
 
   return (
     <>
-      <div className="page-head"><div><h1>{t('Performance bonus')}</h1>
+      <div className="page-head section-head" id="bonus"><div><h2 className="section-title">{t('Performance bonus')}</h2>
         <p className="muted">{isParent ? t('Set what you measure and the most each one can add. Award the bonus from Approvals (or here) when you review a week.')
           : t('How you can earn a bonus on top of your chore pay. Your parents rate each one when they review your week.')}</p></div>
         {isParent && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -39,7 +40,7 @@ export function Bonus() {
           <div key={tier.id} className={`tier tier-${tier.id}`}><b>{t(tier.label)}</b><span>{tier.factor === 0 ? t('No bonus') : tier.factor === 1 ? t('100% of the max') : t('25% of the max')}</span></div>))}
         </div>
         <p className="cap">{t('The bonus is a percentage of that week’s approved chore pay. Example: School grades has a max of 10%. “Good” adds 2.5%, “Excelled” adds the full 10%. On {a} of chore pay, that’s {b} or {c}.', { a: money(h, 100), b: money(h, 2.5), c: money(h, 10) })}</p>
-        {active.length ? <div className="tbl-wrap"><table>
+        {active.length ? <ScrollBox><table>
           <thead><tr><th>{t('Metric')}</th><th className="r">{t('Max')}</th><th>{t('Meets')} <span className="cap">(0%)</span></th><th>{t('Good')} <span className="cap">(25%)</span></th><th>{t('Excelled')} <span className="cap">(100%)</span></th></tr></thead>
           <tbody>{active.map(m => (
             <tr key={m.id} className={isParent ? 'click' : ''} tabIndex={isParent ? 0 : undefined} onClick={isParent ? () => setEdit(m) : undefined}
@@ -50,7 +51,7 @@ export function Bonus() {
               <td>{m.excelled_text || <span className="muted">–</span>}<br /><span className="cap">+{pct(m.max_percent)}</span></td>
             </tr>))}</tbody>
           <tfoot><tr><td>{t('Most a child can earn')}</td><td className="r">{pct(totalMax)}</td><td colSpan={3} className="cap">{t('if they Excel at everything')}</td></tr></tfoot>
-        </table></div>
+        </table></ScrollBox>
           : <Empty title={t('No metrics yet')}><p className="muted">{isParent ? t('Add what you’d like to reward, such as school grades, homework or the quality of chores, with the most each can add.') : t('Your parents haven’t set any bonus metrics yet.')}</p>
             {isParent && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}><button className="btn primary" onClick={seed}>{t('Add example metrics')}</button><button className="btn ghost" onClick={() => setEdit('new')}>{t('+ New metric')}</button></div>}</Empty>}
         {isParent && arch.length > 0 && <section className="panel flat">
@@ -59,7 +60,7 @@ export function Bonus() {
             <span><button className="btn ghost sm" onClick={() => F.run(['bonus_metrics'], () => supabase.from('bonus_metrics').update({ active: true }).eq('id', m.id), t('Metric restored'))}>{t('Restore')}</button></span></div>)}</div>}
         </section>}
         <section className="stack" style={{ gap: 10 }}><h2>{isParent ? t('Bonuses awarded') : t('My bonuses')}</h2>
-          {reviews.length ? <div className="tbl-wrap"><table>
+          {reviews.length ? <ScrollBox><table>
             <thead><tr><th>{t('Week')}</th>{isParent && <th>{t('Child')}</th>}<th>{t('Ratings')}</th><th className="r">{t('Bonus')}</th></tr></thead>
             <tbody>{reviews.map(r => (
               <tr key={r.id} className={isParent ? 'click' : ''} onClick={isParent ? () => setAward(F.member(r.member_id) || null) : undefined}>
@@ -67,7 +68,7 @@ export function Bonus() {
                 <td>{r.ratings.map(x => <span key={x.metric_id} className={`pill tierpill tier-${x.tier}`}>{x.name}: {t(TIERS.find(y => y.id === x.tier)?.label || '')}</span>)}
                   {r.note && <><br /><span className="cap">“{r.note}”</span></>}</td>
                 <td className="r"><b>{money(h, r.bonus_amount)}</b><br /><span className="cap">{t('{p} of {amount}', { p: pct(r.bonus_percent), amount: money(h, r.base_amount) })}</span></td>
-              </tr>))}</tbody></table></div>
+              </tr>))}</tbody></table></ScrollBox>
             : <p className="empty-note">{isParent ? t('No bonuses yet.') : t('No bonuses yet. Keep it up!')}</p>}
         </section>
       </div>
@@ -160,7 +161,7 @@ export function AwardModal({ kid: kid0, week: week0, onClose }: { kid: Member; w
         <p className="muted">{t('Approved chore pay this week:')} <b className="num" style={{ color: 'var(--heading)' }}>{money(h, base)}</b>
           {pending > 0 && <><br /><span className="warn-note">{t('Still awaiting approval: {count}. They count once approved.', { count: count('entry', pending) })}</span></>}
           {existing && Math.abs(existing.base_amount - base) > 0.005 && <><br /><span className="warn-note">{t('Approved pay changed since this bonus was saved ({amount}). Saving updates it.', { amount: money(h, existing.base_amount) })}</span></>}</p>
-        {metrics.length === 0 && <p>{t('Add metrics on the Bonus page first.')}</p>}
+        {metrics.length === 0 && <p>{t('Add metrics on the Remuneration page first.')}</p>}
         <div className="ratings">{metrics.map(m => {
           const cur = tiers[m.id] || 'meets'; const cond = m[`${cur}_text` as 'meets_text'];
           return (

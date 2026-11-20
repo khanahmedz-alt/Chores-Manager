@@ -57,7 +57,7 @@ export function EntryModal({ childId, week, date, choreId, entry, onClose }: {
   }
 
   if (!chores.length) return (
-    <Modal title={t('Log chore time')} onClose={onClose}><div className="sheet-body"><p>{t('There are no chores yet. A parent needs to add them on Chores & pay first.')}</p></div></Modal>
+    <Modal title={t('Log chore time')} onClose={onClose}><div className="sheet-body"><p>{t('There are no chores yet. A parent needs to add them on the Remuneration page first.')}</p></div></Modal>
   );
   if (confirmDel && entry) return <Confirm title={t('Delete this entry?')} text={t('{time} of {chore} on {day}.', { time: dur(entry.minutes), chore: entry.chore_name, day: fmtDay(entry.work_date) })} action={t('Delete')}
     onClose={() => setConfirmDel(false)} onConfirm={async () => {
@@ -72,7 +72,8 @@ export function EntryModal({ childId, week, date, choreId, entry, onClose }: {
       <form onSubmit={submit} noValidate>
         <p className="muted"><Avatar m={kid} size="sm" /> <b style={{ color: 'var(--heading)' }}>{kid?.display_name}</b> · {t('week of {week}', { week: fmtRange(w) })}</p>
         <label className="field"><span>{t('Chore')}</span>
-          <select value={cid} onChange={e => setCid(e.target.value)}>{chores.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <select value={cid} onChange={e => setCid(e.target.value)}>{chores.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+          {chore?.description && <span className="chore-standard"><b>{t('How to do it')}:</b> {chore.description}</span>}</label>
         <div className="row2 when">
           <label className="field"><span>{t('Day done')}</span>
             <select value={day} onChange={e => setDay(e.target.value)}>{DAYS.map((_, i) => {
@@ -184,7 +185,7 @@ export function Timesheet({ kidId, week, setWeek }: { kidId: string; week: strin
               <div className="day-body">
                 {plan.length > 0 && <div className="plan">{plan.map(c => {
                   const mine = slotFor(slotIndex, w, c, i).kid === kidId, isDone = done.has(c.id);
-                  return <span key={c.id} className={`plan-chip ${mine ? 'mine' : ''} ${isDone ? 'done' : ''}`} title={mine ? t('{name}’s', { name: kid?.display_name }) : t('Open to anyone')}>
+                  return <span key={c.id} className={`plan-chip ${mine ? 'mine' : ''} ${isDone ? 'done' : ''}`} title={[mine ? t('{name}’s', { name: kid?.display_name }) : t('Open to anyone'), c.description].filter(Boolean).join(' · ')}>
                     {c.name} · {dur(sessionMins(c))}
                     {canLog && !isDone && <button onClick={() => setModal({ date, choreId: c.id, minutes: sessionMins(c) })} aria-label={t('Log {chore} on {day}', { chore: c.name, day: fmtDay(date) })}>{t('Log')}</button>}
                   </span>;

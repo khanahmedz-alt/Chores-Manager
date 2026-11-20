@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { supabase, errorText } from '../supabase';
 import { useFamily } from '../data';
-import { Avatar, Confirm, Empty, Modal } from '../ui';
+import { Avatar, Confirm, Empty, Modal, ScrollBox } from '../ui';
 import type { Member, Payment } from '../types';
 import { dur, fmtDate, fmtRange, money, r2, weekOf } from '../lib/util';
 import { t, count } from '../i18n';
@@ -55,7 +55,7 @@ export function Balances() {
             </article>);
         })}</div> : <Empty title={t('No children yet')}><p className="muted">{t('Add the children on the Family page.')}</p></Empty>}
         <section className="stack" style={{ gap: 10 }}><h2>{t('Payments')}</h2>
-          {pays.length ? <div className="tbl-wrap"><table>
+          {pays.length ? <ScrollBox><table>
             <thead><tr><th>{t('Date')}</th>{isParent && <th>{t('Child')}</th>}<th className="r">{t('Amount')}</th><th>{t('Method')}</th><th>{t('Paid by')}</th><th>{t('Status')}</th><th /></tr></thead>
             <tbody>{pays.map(p => (
               <tr key={p.id}><td>{fmtDate(p.paid_on)}</td>{isParent && <td>{F.member(p.member_id)?.display_name}</td>}
@@ -65,13 +65,13 @@ export function Balances() {
                 <td className="r">{!p.confirmed_at && (p.member_id === F.me.id
                   ? <button className="btn go sm" onClick={() => confirm(p)}>{t('Confirm received')}</button>
                   : isParent ? <button className="btn ghost sm" onClick={() => setDel(p)}>{t('Remove')}</button> : null)}</td></tr>))}</tbody>
-          </table></div> : <Empty title={t('No payments yet')}><p className="muted">{isParent ? t('Use Record payment on a child’s card when you pay them. They confirm it here when they get it.') : t('When your parents pay you, it shows here so you can confirm you got it.')}</p></Empty>}
+          </table></ScrollBox> : <Empty title={t('No payments yet')}><p className="muted">{isParent ? t('Use Record payment on a child’s card when you pay them. They confirm it here when they get it.') : t('When your parents pay you, it shows here so you can confirm you got it.')}</p></Empty>}
         </section>
-        {wk.length > 0 && <section className="stack" style={{ gap: 10 }}><h2>{t('Approved pay and bonuses by week')}</h2><div className="tbl-wrap"><table>
+        {wk.length > 0 && <section className="stack" style={{ gap: 10 }}><h2>{t('Approved pay and bonuses by week')}</h2><ScrollBox><table>
           <thead><tr><th>{t('Week')}</th>{isParent ? F.kids.map(k => <th key={k.id} className="r">{k.display_name}</th>) : <th className="r">{t('Time')}</th>}<th className="r">{t('Total')}</th></tr></thead>
           <tbody>{wk.map(w => { const x = weeks.get(w)!; return (
             <tr key={w}><td>{fmtRange(w)}</td>{isParent ? F.kids.map(k => <td key={k.id} className="r">{x.by.get(k.id) ? money(h, x.by.get(k.id)!) : <span className="muted">–</span>}</td>) : <td className="r">{dur(x.mins)}</td>}
-              <td className="r"><b>{money(h, x.amt)}</b></td></tr>); })}</tbody></table></div></section>}
+              <td className="r"><b>{money(h, x.amt)}</b></td></tr>); })}</tbody></table></ScrollBox></section>}
       </div>
       {pay && <PayModal kid={pay} owed={totals(pay.id).balance} onClose={() => setPay(null)} />}
       {del && <Confirm title={t('Remove this payment?')} action={t('Remove')} onClose={() => setDel(null)}

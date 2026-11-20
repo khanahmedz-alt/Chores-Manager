@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { EntryStatus, Member } from './types';
 import { textOn } from './lib/util';
 import { t, lang, setLang, otherLangLabel } from './i18n';
@@ -86,3 +86,44 @@ export const Mark = () => (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#04281a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12.5l5 5L20 6.5" /></svg>
   </div>
 );
+
+/**
+ * A table that may be wider than the screen. When it is, the side with more to see gets a fade,
+ * and a short "swipe sideways" note appears above it, so children notice there are more columns.
+ * `scrollToSelector` scrolls a cell into view on first show (e.g. today's column).
+ */
+export function ScrollBox({ children, className = '', scrollToSelector }: { children: ReactNode; className?: string; scrollToSelector?: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+  const update = () => {
+    const el = box.current; if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const pos = Math.abs(el.scrollLeft); // negative in right-to-left layouts
+    setEdges(prev => {
+      const next = { start: max > 4 && pos > 4, end: max > 4 && pos < max - 4 };
+      return prev.start === next.start && prev.end === next.end ? prev : next;
+    });
+  };
+  useLayoutEffect(() => {
+    const el = box.current; if (!el) return;
+    if (scrollToSelector) {
+      const target = el.querySelector<HTMLElement>(scrollToSelector);
+      if (target && el.scrollWidth > el.clientWidth) {
+        const rtl = getComputedStyle(el).direction === 'rtl';
+        const offset = rtl ? -(el.clientWidth - (target.offsetLeft + target.offsetWidth)) : target.offsetLeft;
+        el.scrollLeft = rtl ? Math.min(0, offset + 160) : Math.max(0, offset - 160);
+      }
+    }
+    update();
+    const ro = new ResizeObserver(update); ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const scrollable = edges.start || edges.end;
+  return (
+    <div className={`scrollbox ${edges.start ? 'fade-start' : ''} ${edges.end ? 'fade-end' : ''}`}>
+      {scrollable && <p className="swipe-hint" aria-hidden="true"><span className="swipe-arrow">↔</span> {t('Swipe sideways to see the whole table')}</p>}
+      <div className={`tbl-wrap ${className}`} ref={box} onScroll={update} tabIndex={scrollable ? 0 : undefined}>{children}</div>
+    </div>
+  );
+}

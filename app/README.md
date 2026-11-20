@@ -11,8 +11,9 @@ The multi-family version of Chores Manager: React + TypeScript (Vite) on the fro
 | `supabase/migrations/0003_cleanup_unlinked_logins.sql` | Nightly clean-up of child-device logins that were never linked to a child |
 | `supabase/migrations/0004_contact_messages.sql` | Contact-page messages: table (no client access) and the submit function with the rate limit |
 | `supabase/migrations/0005_fixed_sessions.sql` | Time logged = the chore's fixed session; entries record when the chore was done |
+| `supabase/migrations/0006_country_and_descriptions.sql` | The family's country, and a description (standard) for each chore |
 | `supabase/functions/contact/` | Edge Function behind the Contact page: saves the message and emails the team through Resend |
-| `supabase/tests/rls.test.mjs` | 62 checks of the access rules against a real Postgres |
+| `supabase/tests/rls.test.mjs` | 64 checks of the access rules against a real Postgres |
 | `supabase/tests/contact.test.mjs` | 9 checks of the Contact function (honeypot, validation, rate limit, email failure) |
 | `scripts/backup-db.sh`, `../.github/workflows/nightly-backup.yml` | Nightly encrypted database backup |
 | `src/` | The app: sign-in, family set-up, timesheets, approvals, schedule, chores & pay, balances, family |
@@ -24,7 +25,7 @@ The multi-family version of Chores Manager: React + TypeScript (Vite) on the fro
 
 ## Performance bonus and team chores
 
-- **Performance bonus:** parents set metrics on the **Bonus** page (e.g. School grades, max 10%), with what earns each level. When reviewing a week (on **Approvals** or **Bonus**), each metric is rated **Meets** (0% of its max), **Good** (25%) or **Excelled** (100%). The bonus is that % of the child's approved chore pay for the week, and it's added to their balance.
+- **Performance bonus:** parents set metrics on the **Remuneration** page (Performance bonus section) (e.g. School grades, max 10%), with what earns each level. When reviewing a week (on **Approvals** or **Remuneration**), each metric is rated **Meets** (0% of its max), **Good** (25%) or **Excelled** (100%). The bonus is that % of the child's approved chore pay for the week, and it's added to their balance.
 - **Team chores:** when logging time, a child can pick siblings who helped. Everyone gets the same time; the chore's pay is split equally. Only the child who logged it, or a parent, can change it, and approving it approves it for the whole team.
 
 ## What the database enforces
@@ -40,7 +41,7 @@ The app can't get around these, because the database checks them:
 ## Set up a Supabase project
 
 1. Create a project at supabase.com. A region near your users is best (e.g. `eu-west-2` London or `me-central-1` UAE).
-2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql`, `0004_contact_messages.sql` and `0005_fixed_sessions.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
+2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql`, `0004_contact_messages.sql`, `0005_fixed_sessions.sql` and `0006_country_and_descriptions.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
 3. **Authentication → Sign In / Providers**:
    - Email: on. Keep "Confirm email" on for production.
    - **Allow anonymous sign-ins: on.** Children's devices need this.

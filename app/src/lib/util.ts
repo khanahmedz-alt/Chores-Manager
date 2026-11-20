@@ -157,3 +157,34 @@ export const TIERS: { id: Tier; label: string; factor: number }[] = [
 ];
 export const tierFactor = (t: Tier) => TIERS.find(x => x.id === t)?.factor ?? 0;
 export const pct = (n: number) => `${(Math.round(Number(n) * 100) / 100).toLocaleString('en-GB', { maximumFractionDigits: 2 })}%`;
+
+/* ---------- countries ---------- */
+/** Countries offered when a family is set up, with the currency symbol and time zone they default to. */
+export const COUNTRIES: { code: string; currency: string; tz: string }[] = [
+  { code: 'SA', currency: 'SAR', tz: 'Asia/Riyadh' },
+  { code: 'AE', currency: 'AED', tz: 'Asia/Dubai' },
+  { code: 'QA', currency: 'QAR', tz: 'Asia/Qatar' },
+  { code: 'KW', currency: 'KWD', tz: 'Asia/Kuwait' },
+  { code: 'BH', currency: 'BHD', tz: 'Asia/Bahrain' },
+  { code: 'OM', currency: 'OMR', tz: 'Asia/Muscat' },
+  { code: 'JO', currency: 'JOD', tz: 'Asia/Amman' },
+  { code: 'EG', currency: 'EGP', tz: 'Africa/Cairo' },
+  { code: 'GB', currency: '£', tz: 'Europe/London' },
+  { code: 'IE', currency: '€', tz: 'Europe/Dublin' },
+  { code: 'US', currency: '$', tz: 'America/New_York' },
+  { code: 'CA', currency: 'CA$', tz: 'America/Toronto' },
+  { code: 'AU', currency: 'A$', tz: 'Australia/Sydney' },
+  { code: 'PK', currency: 'Rs', tz: 'Asia/Karachi' },
+  { code: 'IN', currency: '₹', tz: 'Asia/Kolkata' },
+  { code: 'MY', currency: 'RM', tz: 'Asia/Kuala_Lumpur' },
+];
+/** A country's name in the app language (e.g. "Saudi Arabia" / "المملكة العربية السعودية"). */
+export function countryName(code: string): string {
+  if (!code) return '';
+  try { return new Intl.DisplayNames([locale()], { type: 'region' }).of(code) || code; } catch { return code; }
+}
+/** A best guess at the family's country from this device's time zone. */
+export function guessCountry(): string {
+  const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
+  return COUNTRIES.find(c => c.tz === tz)?.code || '';
+}

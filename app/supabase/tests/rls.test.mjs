@@ -229,6 +229,17 @@ rows = (await db.query(`select minutes, done_at is not null has_time from public
 assert.ok(rows.length === 2 && rows.every(r => r.minutes === 120 && r.has_time));
 ok('team chores take the "done at" time and the chore’s session too');
 
+// ---------------------------------------------------------------- country and chore descriptions
+await as('mother', `update public.households set country = 'SA' where id = $1`, [hh]);
+await fails('mother', `update public.households set country = 'Saudi' where id = $1`, [hh], /check constraint/);
+assert.equal((await as('mustafa_phone', `update public.households set country = 'GB' where id = $1`, [hh])).rowCount, 0);
+ok('a parent sets the family’s country (2-letter code); children cannot change it');
+await as('mother', `update public.chores set description = 'Feed twice a day and refill the water bowl' where id = $1`, [CAT]);
+assert.equal((await as('ayesha_phone', `select description from public.chores where id = $1`, [CAT])).rows[0].description, 'Feed twice a day and refill the water bowl');
+assert.equal((await as('ayesha_phone', `update public.chores set description = 'just look at the cat' where id = $1`, [CAT])).rowCount, 0);
+await fails('mother', `update public.chores set description = $2 where id = $1`, [CAT, 'x'.repeat(1001)], /check constraint/);
+ok('parents write a chore’s description (up to 1,000 characters); children can read it but not change it');
+
 // ---------------------------------------------------------------- performance bonus
 const metrics = (await as('mother', `insert into public.bonus_metrics (household_id, name, max_percent, good_text, excelled_text) values
   ($1, 'School grades', 10, 'Mostly Bs', 'Mostly As'), ($1, 'Room tidy', 5, '', '') returning id, name`, [hh])).rows;
