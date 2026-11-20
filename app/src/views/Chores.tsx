@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '../supabase';
 import { useFamily } from '../data';
-import { Avatar, Empty, Modal } from '../ui';
+import { Avatar, Empty, Modal, ScrollBox } from '../ui';
 import type { Chore, Household } from '../types';
-import { DAY_LETTERS, DAYS, DAYS_LONG, FREQ, STARTER_CHORES, choreRate, dur, familyRate, freqFor, hrs, money, num, pad, r2, sessionMins, slotFor, uniq, weekOf, weeklyBudget } from '../lib/util';
-import { t } from '../i18n';
+import { COUNTRIES, DAY_LETTERS, DAYS, DAYS_LONG, FREQ, STARTER_CHORES, choreRate, countryName, dur, familyRate, freqFor, hrs, money, num, pad, r2, sessionMins, slotFor, uniq, weekOf, weeklyBudget } from '../lib/util';
+import { t, lang } from '../i18n';
 
+/** Chores and pay. Shown as a section of the Remuneration page. */
 export function Chores() {
   const F = useFamily();
   const { household: h, isParent, activeChores: cs } = F;
@@ -25,7 +26,7 @@ export function Chores() {
 
   return (
     <>
-      <div className="page-head"><div><h1>{t('Chores & pay')}</h1><p className="muted">{isParent ? t('Add chores, set the hours and days, and set the rate of pay. Tap a chore to change it.') : t('The family chores and what each one pays.')}</p></div>
+      <div className="page-head section-head" id="chores"><div><h2 className="section-title">{t('Chores & pay')}</h2><p className="muted">{isParent ? t('Add chores, set the hours and days, and set the rate of pay. Tap a chore to change it.') : t('The family chores and what each one pays.')}</p></div>
         {isParent && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn ghost" onClick={() => setSettings(true)}>{t('Settings')}</button><button className="btn primary" onClick={() => setEdit('new')}>{t('+ New chore')}</button></div>}</div>
       <div className="stack">
         <section className="stack" style={{ gap: 10 }}>
@@ -42,14 +43,14 @@ export function Chores() {
           <div className={`meter ${pct > 100 ? 'over' : ''}`} role="img" aria-label={t('{p}% of the weekly budget planned', { p: pct })}><i style={{ width: `${Math.min(pct, 100)}%` }} /></div>
           <p className="cap" style={{ marginTop: 8 }}>{pct > 100 ? t('Planned chores cost {p}% of the weekly budget.', { p: pct }) : t('{p}% of the weekly budget is planned. {free} a week is free for new chores.', { p: pct, free: money(h, r2(wb - totalPay)) })}</p>
         </section>}
-        {cs.length ? <div className="tbl-wrap"><table>
+        {cs.length ? <ScrollBox><table>
           <thead><tr><th>{t('Task')}</th><th className="r">{t('Hrs/wk')}</th><th className="r">{t('Wk payment')}</th><th>{t('Activity')}</th><th>{t('Days')}</th><th>{t('This week')}</th></tr></thead>
           <tbody>{cs.map(c => {
             const who = uniq(DAYS.map((_, d) => slotFor(F.slotIndex, cw, c, d).kid).filter((x): x is string => !!x)).map(F.member);
             return (
               <tr key={c.id} className={isParent ? 'click' : ''} tabIndex={isParent ? 0 : undefined}
                 onClick={isParent ? () => setEdit(c) : undefined} onKeyDown={isParent ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEdit(c); } } : undefined}>
-                <td><span className="task">{c.name}</span>{c.rate ? <><br /><span className="cap">{t('Own rate {rate}/hr', { rate: money(h, c.rate) })}</span></> : null}</td>
+                <td><span className="task">{c.name}</span>{c.description && <span className="chore-desc">{c.description}</span>}{c.rate ? <><br /><span className="cap">{t('Own rate {rate}/hr', { rate: money(h, c.rate) })}</span></> : null}</td>
                 <td className="r">{hrs(c.hours_per_week)}</td><td className="r">{money(h, c.hours_per_week * choreRate(h, c))}</td>
                 <td>{t(c.frequency || freqFor(c.days))}<br /><span className="cap">{t('{time} a session', { time: dur(sessionMins(c)) })}</span></td>
                 <td><span className="daydots" aria-label={c.days.map(d => DAYS[d]).join(', ')}>{DAYS.map((d, i) => <i key={d} className={c.days.includes(i) ? 'on' : ''}>{DAY_LETTERS[i]}</i>)}</span></td>
@@ -57,7 +58,7 @@ export function Chores() {
               </tr>);
           })}</tbody>
           <tfoot><tr><td>{t('Total')}</td><td className="r">{hrs(totalHrs)}</td><td className="r">{money(h, totalPay)}</td><td colSpan={3} /></tr></tfoot>
-        </table></div>
+        </table></ScrollBox>
           : <Empty title={t('No chores yet')}><p className="muted">{isParent ? t('Add your first chore, or start with four examples: car wash, gardening, pool and cat litter.') : t('Your parents will add the chores here.')}</p>
             {isParent && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}><button className="btn primary" onClick={seed}>{t('Add example chores')}</button><button className="btn ghost" onClick={() => setEdit('new')}>{t('+ New chore')}</button></div>}</Empty>}
         {isParent && arch.length > 0 && <section className="panel flat">
@@ -75,6 +76,7 @@ export function Chores() {
 function ChoreModal({ chore, onClose }: { chore: Chore | null; onClose: () => void }) {
   const F = useFamily(); const h = F.household;
   const [name, setName] = useState(chore?.name || '');
+  const [desc, setDesc] = useState(chore?.description || '');
   const [hours, setHours] = useState(String(chore?.hours_per_week ?? 2));
   const [days, setDays] = useState<number[]>(chore?.days || FREQ['Alternate day']);
   const [freq, setFreq] = useState(chore?.frequency || 'Alternate day');
@@ -88,7 +90,7 @@ function ChoreModal({ chore, onClose }: { chore: Chore | null; onClose: () => vo
     if (!name.trim()) { setErr(t('Give the chore a name.')); return; }
     if (!(hNum > 0)) { setErr(t('Hours per week must be more than 0.')); return; }
     if (!days.length) { setErr(t('Pick at least one day.')); return; }
-    const body = { name: name.trim(), hours_per_week: hNum, frequency: freq, days, rate: Number(rate) > 0 ? r2(Number(rate)) : null };
+    const body = { name: name.trim(), description: desc.trim(), hours_per_week: hNum, frequency: freq, days, rate: Number(rate) > 0 ? r2(Number(rate)) : null };
     const ok = chore
       ? await F.run(['chores'], () => supabase.from('chores').update(body).eq('id', chore.id), t('Chore saved'))
       : await F.run(['chores'], () => supabase.from('chores').insert({ ...body, household_id: h.id, sort_order: Math.max(0, ...F.chores.map(c => c.sort_order)) + 1 }), t('{name} added', { name: body.name }));
@@ -98,6 +100,9 @@ function ChoreModal({ chore, onClose }: { chore: Chore | null; onClose: () => vo
     <Modal title={chore ? t('Edit chore') : t('New chore')} onClose={onClose}>
       <form onSubmit={submit} noValidate>
         <label className="field"><span>{t('Chore name')}</span><input type="text" maxLength={60} value={name} onChange={e => setName(e.target.value)} placeholder={t('e.g. Take out the bins')} /></label>
+        <label className="field"><span>{t('Description')} <small>{t('(optional)')}</small></span>
+          <textarea rows={3} maxLength={1000} value={desc} onChange={e => setDesc(e.target.value)} placeholder={t('What does “done properly” look like? e.g. Wash, dry and put away all dishes, then wipe the counter.')} />
+          <small>{t('The children see this when they log the chore.')}</small></label>
         <div className="row2">
           <label className="field"><span>{t('Hours per week')}</span><input type="number" min={0.25} step={0.25} value={hours} onChange={e => setHours(e.target.value)} /></label>
           <label className="field"><span>{t('Activity')}</span><select value={freq} onChange={e => { setFreq(e.target.value); if (FREQ[e.target.value]) setDays(FREQ[e.target.value]); }}>
@@ -128,14 +133,22 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const wk = Number(s.monthly_budget) * 12 / 52;
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const body = { name: s.name.trim() || h.name, currency: s.currency.trim(), monthly_budget: Math.max(0, Number(s.monthly_budget) || 0), budget_hours: Math.max(1, Number(s.budget_hours) || 1),
+    const body = { name: s.name.trim() || h.name, country: s.country || '', currency: s.currency.trim(), monthly_budget: Math.max(0, Number(s.monthly_budget) || 0), budget_hours: Math.max(1, Number(s.budget_hours) || 1),
       rate_mode: s.rate_mode, manual_rate: Math.max(0, r2(Number(s.manual_rate) || 0)), release_dow: Number(s.release_dow), release_hour: Number(s.release_hour), timezone: s.timezone };
     if (await F.run(['households'], () => supabase.from('households').update(body).eq('id', h.id), t('Settings saved'))) onClose();
   }
   return (
     <Modal title={t('Settings')} onClose={onClose}>
       <form onSubmit={submit} noValidate>
-        <label className="field"><span>{t('Family name')}</span><input type="text" maxLength={80} value={s.name} onChange={e => set('name', e.target.value)} /></label>
+        <div className="row2">
+          <label className="field"><span>{t('Family name')}</span><input type="text" maxLength={80} value={s.name} onChange={e => set('name', e.target.value)} /></label>
+          <label className="field"><span>{t('Country')}</span>
+            <select value={s.country || ''} onChange={e => set('country', e.target.value)}>
+              <option value="">{t('Not set')}</option>
+              {COUNTRIES.map(c => ({ code: c.code, label: countryName(c.code) })).sort((a, b) => a.label.localeCompare(b.label, lang())).map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+              <option value="ZZ">{t('Other')}</option>
+            </select></label>
+        </div>
         <div className="field"><span>{t('How the hourly rate is set')}</span>
           <div className="seg" role="group">
             <button type="button" aria-pressed={s.rate_mode !== 'manual'} onClick={() => set('rate_mode', 'budget')}>{t('From monthly budget')}</button>

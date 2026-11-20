@@ -1,17 +1,28 @@
 import { useState } from 'react';
 import { supabase, errorText } from '../supabase';
 import { LangToggle, Mark, Wave } from '../ui';
-import { t } from '../i18n';
+import { t, lang, setLang, type Lang } from '../i18n';
+import { COUNTRIES, countryName, guessCountry } from '../lib/util';
 
-const CURRENCIES = ['SAR', '£', '$', '€', 'AED', ''];
+const CURRENCIES = ['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'EGP', '£', '€', '$', 'CA$', 'A$', 'Rs', '₹', 'RM', ''];
 
 /** A signed-in parent who isn't in a family yet: start one, or join with a code from the other parent. */
 export function Onboarding({ onReady, onSignOut }: { onReady: (householdId: string) => void; onSignOut: () => void }) {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const guessed = guessCountry();
   const [mode, setMode] = useState<'create' | 'join'>('create');
   const [family, setFamily] = useState('');
   const [name, setName] = useState('');
-  const [currency, setCurrency] = useState(tz === 'Asia/Riyadh' ? 'SAR' : tz.startsWith('Europe/London') ? '£' : '');
+  const [country, setCountry] = useState(guessed);
+  const [currency, setCurrency] = useState(COUNTRIES.find(c => c.code === guessed)?.currency || '');
+  const [tz, setTz] = useState(COUNTRIES.find(c => c.code === guessed)?.tz || deviceTz);
+  const pickCountry = (code: string) => {
+    setCountry(code);
+    const c = COUNTRIES.find(x => x.code === code);
+    setCurrency(c ? c.currency : currency); setTz(c ? c.tz : deviceTz);
+  };
+  // Country names in the current language, sorted for the reader.
+  const countryOptions = COUNTRIES.map(c => ({ code: c.code, label: countryName(c.code) })).sort((a, b) => a.label.localeCompare(b.label, lang()));
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -23,8 +34,10 @@ export function Onboarding({ onReady, onSignOut }: { onReady: (householdId: stri
     try {
       if (mode === 'create') {
         if (!family.trim()) throw new Error(t('Give your family a name.'));
+        if (!country) throw new Error(t('Choose your country.'));
         const { data, error } = await supabase.rpc('create_household', { p_name: family.trim(), p_display_name: name.trim(), p_currency: currency, p_timezone: tz });
         if (error) throw error;
+        await supabase.from('households').update({ country }).eq('id', data as string);
         onReady(data as string);
       } else {
         const { data: memberId, error } = await supabase.rpc('redeem_invite', { p_code: code.replace(/\s+/g, '').toUpperCase(), p_display_name: name.trim() });
@@ -52,9 +65,21 @@ export function Onboarding({ onReady, onSignOut }: { onReady: (householdId: stri
             {mode === 'create' && <label className="field"><span>{t('Family name')}</span><input type="text" value={family} onChange={e => setFamily(e.target.value)} placeholder={t('e.g. The Khan family')} maxLength={80} /></label>}
             {mode === 'join' && <label className="field"><span>{t('Parent invite code')}</span><input type="text" className="pin" value={code} onChange={e => setCode(e.target.value)} maxLength={12} /></label>}
             <label className="field"><span>{t('Your name in the app')}</span><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('e.g. Mother')} maxLength={40} /></label>
+            <div className="row2">
+              {mode === 'create' && <label className="field"><span>{t('Country')}</span>
+                <select id="ob-country" value={country} onChange={e => pickCountry(e.target.value)}>
+                  <option value="" disabled>{t('Choose your country')}</option>
+                  {countryOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                  <option value="ZZ">{t('Other')}</option>
+                </select></label>}
+              <label className="field"><span>{t('Language')}</span>
+                <select id="ob-lang" value={lang()} onChange={e => setLang(e.target.value as Lang)}>
+                  <option value="en">English</option><option value="ar">العربية</option>
+                </select></label>
+            </div>
             {mode === 'create' && <div className="row2">
-              <label className="field"><span>{t('Currency')}</span><select value={currency} onChange={e => setCurrency(e.target.value)}>{CURRENCIES.map(c => <option key={c} value={c}>{c || t('No symbol')}</option>)}</select></label>
-              <label className="field"><span>{t('Time zone')}</span><input type="text" value={tz} readOnly aria-describedby="tzhelp" /><small id="tzhelp">{t('From this device. Change it later in Settings.')}</small></label>
+              <label className="field"><span>{t('Currency')}</span><select value={currency} onChange={e => setCurrency(e.target.value)}>{(CURRENCIES.includes(currency) ? CURRENCIES : [currency, ...CURRENCIES]).map(c => <option key={c} value={c}>{c || t('No symbol')}</option>)}</select></label>
+              <label className="field"><span>{t('Time zone')}</span><input type="text" value={tz} readOnly aria-describedby="tzhelp" /><small id="tzhelp">{t('Set from your country. Change it later in Settings.')}</small></label>
             </div>}
             {err && <p className="err" role="alert">{err}</p>}
             <button className="btn primary" disabled={busy}>{busy ? t('Please wait…') : mode === 'create' ? t('Create family') : t('Join family')}</button>

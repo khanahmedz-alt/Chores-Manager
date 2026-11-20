@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { supabase, errorText } from '../supabase';
 import { useFamily } from '../data';
-import { Avatar, Confirm, Empty, Modal } from '../ui';
+import { Avatar, Confirm, Empty, Modal, ScrollBox } from '../ui';
 import type { Chore } from '../types';
-import { DAYS, DAYS_LONG, addDays, dur, fmtDate, fmtRange, fmtRelease, fmtWhen, isOpen, kidLoad, money, openSlots, pad, parse, sessionMins, slotFor, textOn, weekOf } from '../lib/util';
+import { DAYS, DAYS_LONG, addDays, dur, fmtDate, fmtMonth, fmtRange, fmtRelease, fmtWhen, isOpen, kidLoad, money, openSlots, pad, parse, sessionMins, slotFor, textOn, weekOf } from '../lib/util';
+import { EntryModal } from './Timesheet';
 import { t, count } from '../i18n';
 
 export function Schedule({ initialWeek }: { initialWeek?: string }) {
@@ -13,10 +14,11 @@ export function Schedule({ initialWeek }: { initialWeek?: string }) {
   const [week, setWeek] = useState(initialWeek || (isOpen(h, nw) ? nw : cw));
   const [edit, setEdit] = useState<{ c: Chore; day: number } | null>(null);
   const [drop, setDrop] = useState<{ c: Chore; day: number } | null>(null);
+  const [log, setLog] = useState<Chore | null>(null);
   const w = week, open = isOpen(h, w);
 
-  const take = async (c: Chore, day: number) => {
-    const { error } = await supabase.rpc('claim_slot', { p_chore: c.id, p_week: w, p_day: day });
+  const take = async (c: Chore, day: number, wk = week) => {
+    const { error } = await supabase.rpc('claim_slot', { p_chore: c.id, p_week: wk, p_day: day });
     if (error) { F.toast(errorText(error)); void F.reload('schedule_slots'); return; }
     await F.reload('schedule_slots'); F.toast(t('{chore} on {day} is yours', { chore: c.name, day: DAYS_LONG[day] }));
   };
@@ -35,16 +37,17 @@ export function Schedule({ initialWeek }: { initialWeek?: string }) {
       {w === cw && isOpen(h, nw) && <button className="btn ghost sm" onClick={() => setWeek(nw)}>{t('Next week')}</button>}
     </div>
   );
-  if (!cs.length) return <>{head}<div className="stack">{nav}<Empty title={t('No chores to schedule')}><p className="muted">{isParent ? t('Add chores on Chores & pay first.') : t('Your parents haven’t added any chores yet.')}</p></Empty></div></>;
+  if (!cs.length) return <>{head}<div className="stack">{nav}<Empty title={t('No chores to schedule')}><p className="muted">{isParent ? t('Add chores on the Remuneration page first.') : t('Your parents haven’t added any chores yet.')}</p></Empty></div></>;
   if (!isParent && !open) return <>{head}<div className="stack">{nav}<Empty title={t('Not up yet')}><p className="muted">{t('The schedule for {week} goes up {when}. Come back then to pick your chores.', { week: fmtRange(w), when: fmtRelease(h, w) })}</p></Empty></div></>;
 
   const n = openSlots(cs, slotIndex, w, today);
   let openMins = 0;
   cs.forEach(c => { for (let d = 0; d < 7; d++) { const s = slotFor(slotIndex, w, c, d); if (s.on && !s.kid) openMins += sessionMins(c); } });
-  const myRows: { c: Chore; d: number; setBy: string | null }[] = [];
-  if (!isParent) cs.forEach(c => { for (let d = 0; d < 7; d++) { const s = slotFor(slotIndex, w, c, d); if (s.on && s.kid === me.id) myRows.push({ c, d, setBy: s.slot?.set_by || null }); } });
-  myRows.sort((a, b) => a.d - b.d);
-  const myLoad = kidLoad(h, cs, slotIndex, w, me.id);
+  // Today, for a child: their chores today (with whether they've logged them) and the ones still open.
+  const ti = cw === weekOf(today) ? (parse(today).getDay() + 6) % 7 : -1;
+  const todayRows = !isParent && ti >= 0 ? cs.map(c => ({ c, s: slotFor(slotIndex, cw, c, ti) })).filter(x => x.s.on && (!x.s.kid || x.s.kid === me.id)) : [];
+  const loggedToday = new Set(F.entries.filter(e => e.member_id === me.id && e.work_date === today && e.status !== 'rejected').map(e => e.chore_id));
+  const myToday = todayRows.filter(x => x.s.kid === me.id), openToday = todayRows.filter(x => !x.s.kid);
 
   return (
     <>
@@ -54,12 +57,32 @@ export function Schedule({ initialWeek }: { initialWeek?: string }) {
         {isParent && (open
           ? <div className="banner go"><span><b>{t('Up for the children.')}</b> {t('Not picked yet: {count}.', { count: count('slot', n) })}</span></div>
           : <div className="banner"><span>{t('The children see this week from {when}. You can assign slots now.', { when: fmtRelease(h, w) })}</span></div>)}
-        {!isParent && <section className="panel">
-          <div className="panel-head"><h2>{t('My chores this week')}</h2><span className="num"><b style={{ color: 'var(--heading)' }}>{dur(myLoad.mins)}</b> <span className="muted">· {t('about {amount}', { amount: money(h, myLoad.pay) })}</span></span></div>
-          {myRows.length ? <div className="entries">{myRows.map(({ c, d, setBy }) => (
-            <div className="entry" key={c.id + d}><span className="what">{DAYS_LONG[d]} · {c.name}</span><span className="amt">{dur(sessionMins(c))}</span>
-              <div className="meta"><span>{setBy && setBy !== me.id ? t('Set by {name}', { name: F.member(setBy)?.display_name || t('a parent') }) : t('Picked by you')}</span></div></div>))}</div>
-            : <p className="empty-note">{t('You haven’t picked anything yet. Tap “Take” on an open slot below.')}</p>}
+        {!isParent && ti >= 0 && <section className="panel today-panel">
+          <div className="panel-head"><h2>{t('Today')} · {DAYS_LONG[ti]} {parse(today).getDate()} {fmtMonth(today)}</h2></div>
+          {myToday.length + openToday.length === 0
+            ? <p className="empty-note">{t('Nothing on the schedule for you today.')}</p>
+            : <div className="entries">
+              {myToday.map(({ c, s }) => { const done = loggedToday.has(c.id); return (
+                <div className={`entry today-row ${done ? 'is-done' : ''}`} key={c.id}>
+                  <span className="what">{done && <span className="tick" aria-hidden="true">✓</span>}{c.name}</span>
+                  <span className="amt">{dur(sessionMins(c))}</span>
+                  <div className="meta">
+                    {c.description && <span className="today-desc">{c.description}</span>}
+                    <span>{s.slot?.set_by && s.slot.set_by !== me.id ? t('Set by {name}', { name: F.member(s.slot.set_by)?.display_name || t('a parent') }) : t('Picked by you')}</span>
+                    <span className="acts">{done ? <span className="pill approved">{t('Logged')}</span>
+                      : <button className="btn primary sm" onClick={() => setLog(c)}>{t('Log it')}</button>}</span>
+                  </div>
+                </div>); })}
+              {openToday.map(({ c }) => (
+                <div className="entry today-row is-open" key={c.id}>
+                  <span className="what">{c.name}</span><span className="amt">{dur(sessionMins(c))}</span>
+                  <div className="meta">
+                    {c.description && <span className="today-desc">{c.description}</span>}
+                    <span>{t('Open: anyone can take it')}</span>
+                    <span className="acts"><button className="btn go sm" onClick={() => take(c, ti, cw)}>{t('Take')}</button></span>
+                  </div>
+                </div>))}
+            </div>}
         </section>}
         <div className="loads">
           {F.kids.map(k => { const l = kidLoad(h, cs, slotIndex, w, k.id); return (
@@ -67,7 +90,7 @@ export function Schedule({ initialWeek }: { initialWeek?: string }) {
           <div className="load"><span className="av" style={{ ['--c' as string]: 'var(--card)', ['--t' as string]: 'var(--muted)', border: '1px dashed var(--line)' }} aria-hidden="true">?</span>
             <div><b>{t('Open')}</b><span className="cap num">{t('{time} not picked', { time: dur(openMins) })}</span></div></div>
         </div>
-        <div className="tbl-wrap"><table className="sched">
+        <ScrollBox scrollToSelector="th.today"><table className="sched">
           <thead><tr><th>{t('Chore')}</th>{DAYS.map((d, i) => <th key={d} className={addDays(w, i) === today ? 'today' : ''}>{d}<br /><span className="cap">{parse(addDays(w, i)).getDate()}</span></th>)}</tr></thead>
           <tbody>{cs.map(c => (
             <tr key={c.id}><td><span className="task">{c.name}</span><br /><span className="cap">{t('{time} a session', { time: dur(sessionMins(c)) })}</span></td>
@@ -84,11 +107,12 @@ export function Schedule({ initialWeek }: { initialWeek?: string }) {
                 }
                 return <td key={i}>{past ? <span className="slot on">{t('Open')}</span> : <button className="slot take" onClick={() => take(c, i)} aria-label={`${label}. Take it`}>{t('Take')}</button>}</td>;
               })}</tr>))}</tbody>
-        </table></div>
+        </table></ScrollBox>
         <p className="cap">{isParent ? t('Open = any child can pick it. + = not usually on this day; tap to add it for this week only.')
           : t('Take = open for anyone. Tap “You ✕” to drop a chore you picked. Chores a parent gave you can only be changed by a parent.')}</p>
       </div>
       {edit && <SlotModal week={w} c={edit.c} day={edit.day} onClose={() => setEdit(null)} />}
+      {log && <EntryModal childId={me.id} week={cw} date={today} choreId={log.id} onClose={() => setLog(null)} />}
       {drop && <Confirm title={t('Drop this chore?')} action={t('Drop it')} onClose={() => setDrop(null)}
         text={t('{chore} on {day} goes back to open, so someone else can take it.', { chore: drop.c.name, day: DAYS_LONG[drop.day] })}
         onConfirm={async () => {
@@ -128,7 +152,7 @@ function SlotModal({ week, c, day, onClose }: { week: string; c: Chore; day: num
           <Opt v="" label={t('Open: any child can pick it')} />
           <Opt v="off" label={t('Not on {day} this week', { day: DAYS_LONG[day] })} />
         </div>
-        <p className="cap">{t('This changes {week} only. To change a chore’s usual days, edit it on Chores & pay.', { week: fmtRange(week) })}</p>
+        <p className="cap">{t('This changes {week} only. To change a chore’s usual days, edit it on the Remuneration page.', { week: fmtRange(week) })}</p>
       </div>
     </Modal>
   );

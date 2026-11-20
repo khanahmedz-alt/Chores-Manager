@@ -1,4 +1,4 @@
-# Chores Manager: where things stand (18 Nov 2026)
+# Chores Manager: where things stand (20 Nov 2026)
 
 Paste everything below the line into a new Claude chat to continue planning without code.
 For a coding session, also point it at this repo and `app/README.md`.
@@ -7,7 +7,10 @@ For a coding session, also point it at this repo and `app/README.md`.
 
 I'm building **Chores Manager**, a family chores and pocket-money app, and I want to continue planning it with you (product, business, launch, pricing, legal, marketing, and what to build next). Here is where things stand.
 
-## What the app does today (live, version 1.2.0)
+## What the app does today (live: 1.2.0; in testing: 1.3.0)
+
+**In testing (1.3.0):** fixed session time per chore (children log the day and time done, not the duration), country and language at set-up, a single Remuneration page (Chores & pay + Bonus), a Today panel on the children's schedule, swipe hints on wide tables, and chore descriptions.
+
 **Who uses it**
 - Each family has parents (managers and approvers) and children (do chores, log time).
 - Parents sign in with email and password. The first parent creates the family and invites the other with a one-time code.
@@ -81,6 +84,11 @@ I'm building **Chores Manager**, a family chores and pocket-money app, and I wan
 7. **Arabic review:** have a native Arabic speaker check the wording, especially on the children's screens.
 8. **Old prototype:** retire the claude.ai version so nobody logs time in the wrong place.
 9. **Email domain:** tighten DMARC for mizala.ai from `p=none` to `p=quarantine` once email looks healthy.
+
+## Next feature: photos (agreed, not built yet)
+- **Chore standard:** parents attach a photo or an SOP document (PDF) to a chore, next to its description.
+- **Proof of completion:** children attach a photo when logging a chore, and parents see it when approving.
+- **Plan:** Supabase Storage with a private bucket per family and access rules like the tables. Downscale photos on the phone before upload, keep them for a set time (e.g. 90 days) to control storage, and consider privacy (photos inside the home).
 
 ## Small builds next (each roughly an hour or less)
 - **Add to Home Screen:** app icon, name and full-screen, so it opens like an app on phones. Not built yet.

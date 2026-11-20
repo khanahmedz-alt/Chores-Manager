@@ -13,6 +13,7 @@ export interface Household {
   release_dow: number;   // 0 = Monday
   release_hour: number;  // 0-23, household time zone
   timezone: string;
+  country: string;       // ISO code, e.g. 'SA'; '' = not chosen
 }
 
 export interface Member {
@@ -30,6 +31,7 @@ export interface Chore {
   id: string;
   household_id: string;
   name: string;
+  description: string;
   hours_per_week: number;
   frequency: string;
   days: number[];
@@ -68,6 +70,7 @@ export interface Entry {
   team_id: string | null;
   team_members: string[];
   split: number;
+  done_at: string | null;
 }
 
 export interface Payment {

@@ -128,10 +128,10 @@ await fails('mustafa_phone', `insert into public.time_entries (household_id, mem
 ok('a child cannot log a future day');
 assert.equal((await as('ayesha_phone', `select count(*)::int n from public.time_entries`)).rows[0].n, 0);
 ok('a sibling cannot see another child’s timesheet');
-await as('mustafa_phone', `update public.time_entries set status = 'approved', minutes = 90 where id = $1`, [e1.id]);
+await as('mustafa_phone', `update public.time_entries set status = 'approved', minutes = 90, note = 'all the beds' where id = $1`, [e1.id]);
 let row = (await db.query(`select status, amount from public.time_entries where id = $1`, [e1.id])).rows[0];
-assert.equal(row.status, 'submitted'); assert.equal(Number(row.amount), 12.98);
-ok('a child can edit their pending time but cannot approve it');
+assert.equal(row.status, 'submitted'); assert.equal(Number(row.amount), 17.31);
+ok('a child can edit their pending entry but cannot approve it or change its time (fixed by the chore session)');
 await as('father', `update public.time_entries set status = 'approved' where id = $1`, [e1.id]);
 row = (await db.query(`select status, reviewed_by from public.time_entries where id = $1`, [e1.id])).rows[0];
 assert.equal(row.status, 'approved'); assert.ok(row.reviewed_by);
@@ -142,7 +142,7 @@ assert.equal(upd.rowCount, 0); assert.equal(del.rowCount, 0);
 ok('a child cannot change or delete approved time');
 await as('mother', `update public.households set rate_mode = 'manual', manual_rate = 20 where id = $1`, [hh]);
 row = (await db.query(`select amount from public.time_entries where id = $1`, [e1.id])).rows[0];
-assert.equal(Number(row.amount), 12.98);
+assert.equal(Number(row.amount), 17.31);
 const e2 = (await as('mother', `insert into public.time_entries (household_id, member_id, chore_id, work_date, minutes, status) values ($1, $2, $3, $4, 30, 'approved') returning amount, status`, [hh, AYESHA, CAT, today])).rows[0];
 assert.equal(Number(e2.amount), 10); assert.equal(e2.status, 'approved');
 ok('changing the rate leaves logged pay alone; new time uses the new rate (30 min × 20 = 10.00)');
@@ -192,15 +192,15 @@ assert.equal((await as('ayesha_phone', `select count(*)::int n from public.time_
 ok('each child sees their own share of the team chore');
 await fails('mustafa_phone', `insert into public.time_entries (household_id, member_id, chore_id, work_date, minutes, team_id, split) values ($1, $2, $3, $4, 30, gen_random_uuid(), 0.1)`, [hh, MUSTAFA, GARDEN, today], /team option/);
 ok('a child cannot fake a team share by writing the entry directly');
-await fails('ayesha_phone', `update public.time_entries set minutes = 600 where team_id = $1`, [team], /whole team/);
+await fails('ayesha_phone', `update public.time_entries set note = 'my own note' where team_id = $1`, [team], /whole team/);
 assert.equal((await as('ayesha_phone', `delete from public.time_entries where team_id = $1`, [team])).rowCount, 0);
 ok('a teammate cannot change or delete just their own share');
 await fails('ayesha_phone', `select public.update_team_time($1, $2, $3, 60, '')`, [team, GARDEN, today], /logged it/);
 ok('only the child who logged it (or a parent) can change a team chore');
-await as('mustafa_phone', `select public.update_team_time($1, $2, $3, 60, 'shorter')`, [team, GARDEN, today]);
-rows = (await db.query(`select amount from public.time_entries where team_id = $1`, [team])).rows;
-assert.ok(rows.every(r => Number(r.amount) === 10));
-ok('changing the team chore to 1h updates everyone’s share (10.00 each)');
+await as('mustafa_phone', `select public.update_team_time($1, $2, $3, 60, 'it was the cat')`, [team, CAT, today]);
+rows = (await db.query(`select amount, minutes from public.time_entries where team_id = $1`, [team])).rows;
+assert.ok(rows.every(r => Number(r.amount) === 5 && r.minutes === 30));
+ok('changing the team chore to Feed the cat (30 min session at 20/hr) updates everyone’s share (5.00 each)');
 await fails('mustafa_phone', `select public.log_team_time($1, $2, $3, 60, '', $4)`, [hh, GARDEN, today, [MUSTAFA]], /2 to 8/);
 await fails('outsider', `select public.log_team_time($1, $2, $3, 60, '', $4)`, [hh, GARDEN, today, [MUSTAFA, AYESHA]], /Not a member/);
 ok('a team needs at least two children, and outsiders cannot log one');
@@ -208,6 +208,37 @@ await as('father', `update public.time_entries set status = 'approved' where tea
 assert.ok((await db.query(`select bool_and(status = 'approved') ok from public.time_entries where team_id = $1`, [team])).rows[0].ok);
 await fails('mustafa_phone', `select public.delete_team_time($1)`, [team], /Approved/);
 ok('a parent approves the whole team at once; children cannot delete it after that');
+
+// ---------------------------------------------------------------- fixed sessions and "done at"
+const doneAt = (await db.query(`select (now() - interval '2 hours') t, ((now() - interval '2 hours') at time zone 'Asia/Riyadh')::date::text d`)).rows[0];
+const fx = (await as('ayesha_phone', `insert into public.time_entries (household_id, member_id, chore_id, work_date, done_at, minutes) values ($1, $2, $3, '2000-01-01', $4, 999) returning minutes, work_date::text, amount`, [hh, AYESHA, CAT, doneAt.t])).rows[0];
+assert.equal(fx.minutes, 30); assert.equal(fx.work_date, doneAt.d); assert.equal(Number(fx.amount), 10);
+ok('time logged is the chore’s session (Feed the cat: 3.5 hrs ÷ 7 days = 30 min), whatever the app sends; the day comes from the "done at" time');
+await fails('ayesha_phone', `insert into public.time_entries (household_id, member_id, chore_id, done_at) values ($1, $2, $3, now() + interval '1 day')`, [hh, AYESHA, CAT], /hasn.t happened yet/);
+await fails('mother', `insert into public.time_entries (household_id, member_id, chore_id, done_at, status) values ($1, $2, $3, now() + interval '3 hours', 'approved')`, [hh, AYESHA, CAT], /hasn.t happened yet/);
+ok('nobody can log a chore at a time that hasn’t happened yet');
+await as('mother', `update public.chores set hours_per_week = 7 where id = $1`, [CAT]);
+const kept = (await as('ayesha_phone', `update public.time_entries set note = 'and brushed her' where member_id = $1 and note = '' and team_id is null returning minutes, amount`, [AYESHA])).rows;
+assert.ok(kept.length >= 1 && kept.every(r => r.minutes === 30));
+const longer = (await as('ayesha_phone', `insert into public.time_entries (household_id, member_id, chore_id, done_at) values ($1, $2, $3, now() - interval '1 hour') returning minutes`, [hh, AYESHA, CAT])).rows[0];
+assert.equal(longer.minutes, 60);
+await as('mother', `update public.chores set hours_per_week = 3.5 where id = $1`, [CAT]);
+ok('changing a chore’s hours changes new entries only; logged entries keep their time and pay');
+const t2 = (await as('mustafa_phone', `select public.log_team_time($1, $2, $3, null, '', $4, $5) t`, [hh, GARDEN, today, [MUSTAFA, AYESHA], doneAt.t])).rows[0].t;
+rows = (await db.query(`select minutes, done_at is not null has_time from public.time_entries where team_id = $1`, [t2])).rows;
+assert.ok(rows.length === 2 && rows.every(r => r.minutes === 120 && r.has_time));
+ok('team chores take the "done at" time and the chore’s session too');
+
+// ---------------------------------------------------------------- country and chore descriptions
+await as('mother', `update public.households set country = 'SA' where id = $1`, [hh]);
+await fails('mother', `update public.households set country = 'Saudi' where id = $1`, [hh], /check constraint/);
+assert.equal((await as('mustafa_phone', `update public.households set country = 'GB' where id = $1`, [hh])).rowCount, 0);
+ok('a parent sets the family’s country (2-letter code); children cannot change it');
+await as('mother', `update public.chores set description = 'Feed twice a day and refill the water bowl' where id = $1`, [CAT]);
+assert.equal((await as('ayesha_phone', `select description from public.chores where id = $1`, [CAT])).rows[0].description, 'Feed twice a day and refill the water bowl');
+assert.equal((await as('ayesha_phone', `update public.chores set description = 'just look at the cat' where id = $1`, [CAT])).rowCount, 0);
+await fails('mother', `update public.chores set description = $2 where id = $1`, [CAT, 'x'.repeat(1001)], /check constraint/);
+ok('parents write a chore’s description (up to 1,000 characters); children can read it but not change it');
 
 // ---------------------------------------------------------------- performance bonus
 const metrics = (await as('mother', `insert into public.bonus_metrics (household_id, name, max_percent, good_text, excelled_text) values

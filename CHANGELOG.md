@@ -13,6 +13,24 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
+## 1.3.0 (in testing)
+Branch: `claude/preview-bonus-teams`, not live yet.
+
+**Changed**
+- **Logging a chore no longer asks how long it took.** The time logged and paid is the chore's fixed session: hours per week ÷ the days it's on, e.g. Dishes, 7 hrs ÷ 7 days = 1h 00m. The child picks the **day and time it was done**, and entries show "Done 18:30".
+- **The database sets the time from the chore**, whatever the app sends. Nobody can log a time that hasn't happened yet. Changing a chore's hours later doesn't change entries already logged.
+
+**New**
+- **Country and language when a family is set up.** Choosing a country fills in the currency and time zone; choosing a language switches the screen straight away. Existing families can set their country in Settings.
+- **Remuneration page.** "Chores & pay" and "Bonus" are now one page for parents and children, with quick links to each section.
+- **Children's schedule.** A **Today** panel lists their chores for today, with **Log it** and a ✓ once logged, and open chores with **Take**. The "My chores this week" panel is gone; the siblings' boxes and the table stay.
+- **Wide tables are easier to spot.** A "Swipe sideways to see the whole table" note and shaded edges appear when a table is wider than the screen. The schedule opens at today's column, with the chore names pinned.
+- **Chore descriptions.** Parents describe what "done properly" looks like, and children see it when they log the chore.
+
+**Database steps (run before deploying, in order; both safe while 1.2.0 is live):**
+1. `app/supabase/migrations/0005_fixed_sessions.sql`
+2. `app/supabase/migrations/0006_country_and_descriptions.sql`
+
 ## 1.2.0 (18 Nov 2026, live)
 Backup: branch `release/v1.2.0`.
 

@@ -49,9 +49,9 @@ export function todayIn(tz: string): string {
 }
 
 /** The instant a wall-clock time (date + hour) happens in a time zone. */
-export function zonedInstant(date: string, hour: number, tz: string): Date {
+export function zonedInstant(date: string, hour: number, tz: string, minute = 0): Date {
   const [y, m, d] = date.split('-').map(Number);
-  const guess = Date.UTC(y, m - 1, d, hour);
+  const guess = Date.UTC(y, m - 1, d, hour, minute);
   const offsetAt = (t: number) => {
     try {
       const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(t));
@@ -87,8 +87,20 @@ export const familyRate = (h: Household) => h.rate_mode === 'manual'
   ? Number(h.manual_rate) || 0
   : (Number(h.budget_hours) > 0 ? Number(h.monthly_budget) * 12 / 52 / Number(h.budget_hours) : 0);
 export const choreRate = (h: Household, c?: Chore | null) => (c && Number(c.rate) > 0) ? Number(c.rate) : familyRate(h);
+/** A chore's session length in minutes: the fixed time logged each time it's done (matches chore_session_minutes() in the database). */
 export const sessionMins = (c: Pick<Chore, 'days' | 'hours_per_week'>) =>
-  c.days && c.days.length ? Math.round(Number(c.hours_per_week) * 60 / c.days.length / 5) * 5 : 0;
+  c.days && c.days.length ? Math.min(1440, Math.max(5, Math.round(Number(c.hours_per_week) * 60 / c.days.length / 5) * 5)) : 0;
+
+/** The current time of day in a time zone, as HH:MM. */
+export function nowTimeIn(tz: string): string {
+  try { return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()); }
+  catch { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+}
+/** The time of day of a stored timestamp in a time zone, as HH:MM. */
+export function clockIn(isoTime: string, tz: string): string {
+  try { return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(isoTime)); }
+  catch { return ''; }
+}
 export const freqFor = (days: number[]) => {
   const s = [...days].sort((a, b) => a - b);
   for (const k in FREQ) if (FREQ[k].length === s.length && FREQ[k].every((v, i) => v === s[i])) return k;
@@ -145,3 +157,34 @@ export const TIERS: { id: Tier; label: string; factor: number }[] = [
 ];
 export const tierFactor = (t: Tier) => TIERS.find(x => x.id === t)?.factor ?? 0;
 export const pct = (n: number) => `${(Math.round(Number(n) * 100) / 100).toLocaleString('en-GB', { maximumFractionDigits: 2 })}%`;
+
+/* ---------- countries ---------- */
+/** Countries offered when a family is set up, with the currency symbol and time zone they default to. */
+export const COUNTRIES: { code: string; currency: string; tz: string }[] = [
+  { code: 'SA', currency: 'SAR', tz: 'Asia/Riyadh' },
+  { code: 'AE', currency: 'AED', tz: 'Asia/Dubai' },
+  { code: 'QA', currency: 'QAR', tz: 'Asia/Qatar' },
+  { code: 'KW', currency: 'KWD', tz: 'Asia/Kuwait' },
+  { code: 'BH', currency: 'BHD', tz: 'Asia/Bahrain' },
+  { code: 'OM', currency: 'OMR', tz: 'Asia/Muscat' },
+  { code: 'JO', currency: 'JOD', tz: 'Asia/Amman' },
+  { code: 'EG', currency: 'EGP', tz: 'Africa/Cairo' },
+  { code: 'GB', currency: '£', tz: 'Europe/London' },
+  { code: 'IE', currency: '€', tz: 'Europe/Dublin' },
+  { code: 'US', currency: '$', tz: 'America/New_York' },
+  { code: 'CA', currency: 'CA$', tz: 'America/Toronto' },
+  { code: 'AU', currency: 'A$', tz: 'Australia/Sydney' },
+  { code: 'PK', currency: 'Rs', tz: 'Asia/Karachi' },
+  { code: 'IN', currency: '₹', tz: 'Asia/Kolkata' },
+  { code: 'MY', currency: 'RM', tz: 'Asia/Kuala_Lumpur' },
+];
+/** A country's name in the app language (e.g. "Saudi Arabia" / "المملكة العربية السعودية"). */
+export function countryName(code: string): string {
+  if (!code) return '';
+  try { return new Intl.DisplayNames([locale()], { type: 'region' }).of(code) || code; } catch { return code; }
+}
+/** A best guess at the family's country from this device's time zone. */
+export function guessCountry(): string {
+  const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
+  return COUNTRIES.find(c => c.tz === tz)?.code || '';
+}
