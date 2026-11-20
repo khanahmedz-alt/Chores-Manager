@@ -10,8 +10,9 @@ The multi-family version of Chores Manager: React + TypeScript (Vite) on the fro
 | `supabase/migrations/0002_bonus_and_teams.sql` | Performance bonus (metrics + weekly reviews) and team chores (split pay). Run after 0001 |
 | `supabase/migrations/0003_cleanup_unlinked_logins.sql` | Nightly clean-up of child-device logins that were never linked to a child |
 | `supabase/migrations/0004_contact_messages.sql` | Contact-page messages: table (no client access) and the submit function with the rate limit |
+| `supabase/migrations/0005_fixed_sessions.sql` | Time logged = the chore's fixed session; entries record when the chore was done |
 | `supabase/functions/contact/` | Edge Function behind the Contact page: saves the message and emails the team through Resend |
-| `supabase/tests/rls.test.mjs` | 58 checks of the access rules against a real Postgres |
+| `supabase/tests/rls.test.mjs` | 62 checks of the access rules against a real Postgres |
 | `supabase/tests/contact.test.mjs` | 9 checks of the Contact function (honeypot, validation, rate limit, email failure) |
 | `scripts/backup-db.sh`, `../.github/workflows/nightly-backup.yml` | Nightly encrypted database backup |
 | `src/` | The app: sign-in, family set-up, timesheets, approvals, schedule, chores & pay, balances, family |
@@ -32,14 +33,14 @@ The app can't get around these, because the database checks them:
 
 - **Families are separate:** a family can't see or change another family's data.
 - **Children's limits:** a child sees their own timesheet and payments only. They can't log time for a sibling or for a future day, can't approve their own time, and can't change time once it's approved.
-- **Pay comes from the database:** pay is always minutes × the chore's rate (or the family rate), worked out in the database. Each entry keeps the rate it was logged at.
+- **Pay comes from the database:** the time logged is the chore's fixed session (hours per week ÷ the days it's on, rounded to 5 minutes), and pay is that time × the chore's rate (or the family rate). The app only sends the day and time the chore was done. Each entry keeps the time and rate it was logged with.
 - **Schedule picking:** children can pick only once that week's schedule is up (default Saturday 18:00 in the family's time zone). If two children tap the same slot, the first gets it. A child can't drop a chore a parent gave them.
 - **Payments:** only parents record payments, only the child who was paid can confirm one, and a confirmed payment can't be deleted.
 
 ## Set up a Supabase project
 
 1. Create a project at supabase.com. A region near your users is best (e.g. `eu-west-2` London or `me-central-1` UAE).
-2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql` and `0004_contact_messages.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
+2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql`, `0004_contact_messages.sql` and `0005_fixed_sessions.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
 3. **Authentication → Sign In / Providers**:
    - Email: on. Keep "Confirm email" on for production.
    - **Allow anonymous sign-ins: on.** Children's devices need this.

@@ -397,3 +397,7 @@ a.menu-item { display: block; text-decoration: none; }
 .contact-done { text-align: start; }
 .done-badge { width: 56px; height: 56px; border-radius: 50%; background: var(--brand); display: grid; place-items: center; }
 .contact .cap a, .auth-card .cap a { color: var(--brand-ink); font-weight: 600; text-underline-offset: 3px; }
+/* Log chore time: when it was done, and the fixed session */
+.when input[type="time"] { direction: ltr; }
+.session-note { margin: -4px 0 0; padding: 10px 12px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--brand) 12%, var(--card)); color: var(--ink); font-weight: 600; font-size: 14px; }
+.session-note small { color: var(--muted); font-weight: 500; }

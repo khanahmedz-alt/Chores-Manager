@@ -545,4 +545,13 @@ export const AR: Record<string, string> = {
   'Thanks, we’ll reply by email': 'شكراً، سنرد عليك بالبريد الإلكتروني',
   'We’ve got your message and will answer at {email}.': 'وصلتنا رسالتك وسنرد على {email}.',
   'Send another message': 'إرسال رسالة أخرى',
+  // Fixed sessions and the time a chore was done
+  'Day done': 'يوم الإنجاز',
+  'Time done': 'وقت الإنجاز',
+  'Session time: {time}': 'مدة المهمة: {time}',
+  'fixed for this chore': 'ثابتة لهذه المهمة',
+  'Done {time}': 'أُنجزت {time}',
+  'Enter the time it was done.': 'أدخل وقت إنجاز المهمة.',
+  'That time hasn’t happened yet.': 'هذا الوقت لم يحن بعد.',
+  "That time hasn't happened yet": 'هذا الوقت لم يحن بعد',
 };

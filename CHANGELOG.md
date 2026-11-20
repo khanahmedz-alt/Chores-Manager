@@ -13,6 +13,15 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
+## 1.3.0 (in testing)
+Branch: `claude/preview-bonus-teams`, not live yet.
+
+**Changed**
+- **Logging a chore no longer asks how long it took.** The time logged and paid is the chore's fixed session: hours per week ÷ the days it's on, e.g. Dishes, 7 hrs ÷ 7 days = 1h 00m. The child picks the **day and time it was done**, and entries show "Done 18:30".
+- **The database sets the time from the chore**, whatever the app sends. Nobody can log a time that hasn't happened yet. Changing a chore's hours later doesn't change entries already logged.
+
+**Database step (run before deploying):** `app/supabase/migrations/0005_fixed_sessions.sql`. It's safe while 1.2.0 is live.
+
 ## 1.2.0 (18 Nov 2026, live)
 Backup: branch `release/v1.2.0`.
 

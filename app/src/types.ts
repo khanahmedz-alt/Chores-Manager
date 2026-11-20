@@ -68,6 +68,7 @@ export interface Entry {
   team_id: string | null;
   team_members: string[];
   split: number;
+  done_at: string | null;
 }
 
 export interface Payment {

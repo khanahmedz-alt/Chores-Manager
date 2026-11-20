@@ -49,9 +49,9 @@ export function todayIn(tz: string): string {
 }
 
 /** The instant a wall-clock time (date + hour) happens in a time zone. */
-export function zonedInstant(date: string, hour: number, tz: string): Date {
+export function zonedInstant(date: string, hour: number, tz: string, minute = 0): Date {
   const [y, m, d] = date.split('-').map(Number);
-  const guess = Date.UTC(y, m - 1, d, hour);
+  const guess = Date.UTC(y, m - 1, d, hour, minute);
   const offsetAt = (t: number) => {
     try {
       const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(t));
@@ -87,8 +87,20 @@ export const familyRate = (h: Household) => h.rate_mode === 'manual'
   ? Number(h.manual_rate) || 0
   : (Number(h.budget_hours) > 0 ? Number(h.monthly_budget) * 12 / 52 / Number(h.budget_hours) : 0);
 export const choreRate = (h: Household, c?: Chore | null) => (c && Number(c.rate) > 0) ? Number(c.rate) : familyRate(h);
+/** A chore's session length in minutes: the fixed time logged each time it's done (matches chore_session_minutes() in the database). */
 export const sessionMins = (c: Pick<Chore, 'days' | 'hours_per_week'>) =>
-  c.days && c.days.length ? Math.round(Number(c.hours_per_week) * 60 / c.days.length / 5) * 5 : 0;
+  c.days && c.days.length ? Math.min(1440, Math.max(5, Math.round(Number(c.hours_per_week) * 60 / c.days.length / 5) * 5)) : 0;
+
+/** The current time of day in a time zone, as HH:MM. */
+export function nowTimeIn(tz: string): string {
+  try { return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()); }
+  catch { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+}
+/** The time of day of a stored timestamp in a time zone, as HH:MM. */
+export function clockIn(isoTime: string, tz: string): string {
+  try { return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(isoTime)); }
+  catch { return ''; }
+}
 export const freqFor = (days: number[]) => {
   const s = [...days].sort((a, b) => a - b);
   for (const k in FREQ) if (FREQ[k].length === s.length && FREQ[k].every((v, i) => v === s[i])) return k;

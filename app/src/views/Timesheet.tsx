@@ -3,11 +3,11 @@ import { supabase } from '../supabase';
 import { useFamily } from '../data';
 import { Avatar, Modal, Pill, Confirm } from '../ui';
 import type { Entry } from '../types';
-import { DAYS, DAYS_LONG, addDays, choreRate, dur, fmtDate, fmtDay, fmtMonth, fmtRange, fmtRelease, isOpen, kidLoad, money, openSlots, pad, parse, r2, sessionMins, slotFor, weekOf, familyRate } from '../lib/util';
+import { DAYS, DAYS_LONG, addDays, choreRate, clockIn, dur, fmtDate, fmtDay, fmtMonth, fmtRange, fmtRelease, isOpen, kidLoad, money, nowTimeIn, openSlots, parse, r2, sessionMins, slotFor, weekOf, familyRate, zonedInstant } from '../lib/util';
 import { t, count } from '../i18n';
 
 /* ---------------- Log / edit time ---------------- */
-export function EntryModal({ childId, week, date, choreId, minutes, entry, onClose }: {
+export function EntryModal({ childId, week, date, choreId, entry, onClose }: {
   childId: string; week: string; date?: string; choreId?: string; minutes?: number; entry?: Entry; onClose: () => void;
 }) {
   const F = useFamily();
@@ -20,8 +20,8 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
   const defDate = entry?.work_date || date || (today >= w && today <= addDays(w, 6) ? today : (w < today ? addDays(w, 6) : w));
   const [cid, setCid] = useState(entry?.chore_id || choreId || chores[0]?.id || '');
   const [day, setDay] = useState(defDate);
-  const c0 = chores.find(c => c.id === cid);
-  const [mins, setMins] = useState<number>(entry?.minutes ?? minutes ?? (c0 ? sessionMins(c0) || 30 : 30));
+  // When it was done: the day (within this week) and the time of day, in the family's time zone.
+  const [time, setTime] = useState(entry?.done_at ? clockIn(entry.done_at, h.timezone) : nowTimeIn(h.timezone));
   const [note, setNote] = useState(entry?.note || '');
   const [err, setErr] = useState('');
   const [confirmDel, setConfirmDel] = useState(false);
@@ -32,18 +32,22 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
   const siblings = F.kids.filter(k => k.id !== childId);
   const chore = chores.find(c => c.id === cid);
   const rate = entry && entry.chore_id === cid ? entry.rate : choreRate(h, chore);
+  // The time logged is fixed by the chore's session (an existing entry keeps the time it was logged with).
+  const mins = entry && entry.chore_id === cid ? entry.minutes : (chore ? sessionMins(chore) : 0);
   const canDelete = entry && (isParent || (entry.status !== 'approved' && (!entry.team_id || entry.created_by === F.me.id)));
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr('');
     if (!cid) { setErr(t('Pick a chore.')); return; }
-    if (mins <= 0) { setErr(t('Enter the time spent, more than 0 minutes.')); return; }
-    if (mins > 16 * 60) { setErr(t('That is more than 16 hours. Check the hours.')); return; }
-    const body = { chore_id: cid, work_date: day, minutes: mins, note: note.trim() };
+    const m = /^(\d{1,2}):(\d{2})$/.exec(time);
+    if (!m) { setErr(t('Enter the time it was done.')); return; }
+    const doneAt = zonedInstant(day, Number(m[1]), h.timezone, Number(m[2]));
+    if (doneAt.getTime() > Date.now() + 10 * 60 * 1000) { setErr(t('That time hasn’t happened yet.')); return; }
+    const body = { chore_id: cid, work_date: day, done_at: doneAt.toISOString(), note: note.trim() };
     const ok = entry?.team_id
-      ? await F.run(['time_entries'], () => supabase.rpc('update_team_time', { p_team: entry.team_id, p_chore: cid, p_date: day, p_minutes: mins, p_note: body.note }), t('Saved for the whole team'))
+      ? await F.run(['time_entries'], () => supabase.rpc('update_team_time', { p_team: entry.team_id, p_chore: cid, p_date: day, p_note: body.note, p_done_at: body.done_at }), t('Saved for the whole team'))
       : !entry && partners.length
-      ? await F.run(['time_entries'], () => supabase.rpc('log_team_time', { p_household: h.id, p_chore: cid, p_date: day, p_minutes: mins, p_note: body.note, p_members: [childId, ...partners] }),
+      ? await F.run(['time_entries'], () => supabase.rpc('log_team_time', { p_household: h.id, p_chore: cid, p_date: day, p_note: body.note, p_members: [childId, ...partners], p_done_at: body.done_at }),
           isParent ? t('Team time added and approved for {count}', { count: count('child', n) }) : t('Sent for approval. The pay is split {n} ways.', { n }))
       : entry
       ? await F.run(['time_entries'], () => supabase.from('time_entries').update(body).eq('id', entry.id), t('Saved'))
@@ -63,26 +67,22 @@ export function EntryModal({ childId, week, date, choreId, minutes, entry, onClo
       if (ok) onClose();
     }} />;
 
-  const chips = [15, 30, 45, 60, 90, 120, 180];
   return (
     <Modal title={entry ? t('Edit chore time') : t('Log chore time')} onClose={onClose}>
       <form onSubmit={submit} noValidate>
         <p className="muted"><Avatar m={kid} size="sm" /> <b style={{ color: 'var(--heading)' }}>{kid?.display_name}</b> · {t('week of {week}', { week: fmtRange(w) })}</p>
         <label className="field"><span>{t('Chore')}</span>
           <select value={cid} onChange={e => setCid(e.target.value)}>{chores.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        <label className="field"><span>{t('Day')}</span>
-          <select value={day} onChange={e => setDay(e.target.value)}>{DAYS.map((_, i) => {
-            const dd = addDays(w, i), dis = dd > today && !isParent;
-            return <option key={dd} value={dd} disabled={dis}>{DAYS_LONG[i]} {fmtDate(dd)}{dis ? ` ${t('(not yet)')}` : ''}</option>;
-          })}</select></label>
-        <div className="field"><span>{t('Time spent')}</span>
-          <div className="chips">{chips.map(m => <button type="button" key={m} className="chip" aria-pressed={mins === m} onClick={() => setMins(m)}>{dur(m)}</button>)}</div>
-          <div className="row2">
-            <label className="field"><small>{t('Hours')}</small><input type="number" min={0} max={16} inputMode="numeric" value={Math.floor(mins / 60)} onChange={e => setMins(Math.max(0, parseInt(e.target.value, 10) || 0) * 60 + (mins % 60))} /></label>
-            <label className="field"><small>{t('Minutes')}</small><select value={mins % 60 - (mins % 5)} onChange={e => setMins(Math.floor(mins / 60) * 60 + Number(e.target.value))}>
-              {Array.from({ length: 12 }, (_, i) => i * 5).map(m => <option key={m} value={m}>{pad(m)}</option>)}</select></label>
-          </div>
+        <div className="row2 when">
+          <label className="field"><span>{t('Day done')}</span>
+            <select value={day} onChange={e => setDay(e.target.value)}>{DAYS.map((_, i) => {
+              const dd = addDays(w, i), dis = dd > today;
+              return <option key={dd} value={dd} disabled={dis}>{DAYS_LONG[i]} {fmtDate(dd)}{dis ? ` ${t('(not yet)')}` : ''}</option>;
+            })}</select></label>
+          <label className="field"><span>{t('Time done')}</span>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)} required /></label>
         </div>
+        <p className="session-note">{t('Session time: {time}', { time: dur(mins) })} <small>· {t('fixed for this chore')}</small></p>
         {entry?.team_id
           ? <div className="field"><span>{t('Team chore')}</span><p className="team-line">{entry.team_members.map(id => <Avatar key={id} m={F.member(id)} size="sm" />)} {entry.team_members.map(id => F.member(id)?.display_name).join(', ')}</p>
               <small>{t('Changes here apply to everyone in the team.')}</small></div>
@@ -121,6 +121,7 @@ export function EntryRow({ e, onEdit }: { e: Entry; onEdit: (e: Entry) => void }
     <div className="entry">
       <span className="what">{e.chore_name}</span><span className="amt">{money(F.household, e.amount)}</span>
       <div className="meta">
+        {e.done_at && <span className="num">{t('Done {time}', { time: clockIn(e.done_at, F.household.timezone) })}</span>}
         <span className="num">{dur(e.minutes)} × {money(F.household, e.rate)}{t('/hr')}{n > 1 ? ` ÷ ${n}` : ''}</span><Pill status={e.status} />
         {n > 1 && <span className="pill team">{t('Team · with {names}', { names: others })}</span>}
         {e.note && <span>“{e.note}”</span>}
@@ -175,7 +176,7 @@ export function Timesheet({ kidId, week, setWeek }: { kidId: string; week: strin
           const mins = dayEs.filter(e => e.status !== 'rejected').reduce((s, e) => s + e.minutes, 0);
           const plan = showPlan ? chores.filter(c => { const s = slotFor(slotIndex, w, c, i); return s.on && (!s.kid || s.kid === kidId); }) : [];
           const done = new Set(dayEs.filter(e => e.status !== 'rejected').map(e => e.chore_id));
-          const canLog = !future || isParent;
+          const canLog = !future;
           return (
             <article key={date} className={`day ${date === today ? 'today' : ''} ${future ? 'future' : ''}`}>
               <header><b>{name} <span className="muted" style={{ fontWeight: 500 }}>{parse(date).getDate()} {fmtMonth(date)}</span></b>
