@@ -13,8 +13,8 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
-## 1.4.0 (in testing)
-Branch: `claude/preview-bonus-teams`, not live yet. Includes everything in 1.3.0.
+## 1.4.0 (20 Nov 2026, live)
+Backup: branch `release/v1.4.0`. Includes everything in 1.3.0.
 
 **Fixed**
 - **Take on the children's schedule.** The button now shows "Taking…" while it works and can't be tapped twice. If the chore can't be taken, the reason stays on the page in a red box (not just a pop-up that disappears).
@@ -35,8 +35,7 @@ Branch: `claude/preview-bonus-teams`, not live yet. Includes everything in 1.3.0
 1. `app/supabase/migrations/0007_week_start.sql`. Until it's run, everything still works and every family stays on Monday. Only changing the week start in Settings will fail.
 2. `app/supabase/migrations/0008_chore_times.sql`. Until it's run, only giving a chore a time will fail.
 
-## 1.3.0 (in testing, released together with 1.4.0)
-Branch: `claude/preview-bonus-teams`, not live yet.
+## 1.3.0 (20 Nov 2026, went live together with 1.4.0)
 
 **Changed**
 - **Logging a chore no longer asks how long it took.** The time logged and paid is the chore's fixed session: hours per week ÷ the days it's on, e.g. Dishes, 7 hrs ÷ 7 days = 1h 00m. The child picks the **day and time it was done**, and entries show "Done 18:30".
@@ -53,7 +52,7 @@ Branch: `claude/preview-bonus-teams`, not live yet.
 1. `app/supabase/migrations/0005_fixed_sessions.sql`
 2. `app/supabase/migrations/0006_country_and_descriptions.sql`
 
-## 1.2.0 (18 Nov 2026, live)
+## 1.2.0 (18 Nov 2026)
 Backup: branch `release/v1.2.0`.
 
 **New**
