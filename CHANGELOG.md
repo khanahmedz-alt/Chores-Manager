@@ -13,8 +13,29 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
-## 1.3.0 (in testing)
-Branch: `claude/preview-bonus-teams`, not live yet.
+## 1.4.0 (20 Nov 2026, live)
+Backup: branch `release/v1.4.0`. Includes everything in 1.3.0.
+
+**Fixed**
+- **Take on the children's schedule.** The button now shows "Taking…" while it works and can't be tapped twice. If the chore can't be taken, the reason stays on the page in a red box (not just a pop-up that disappears).
+- **Days that have passed are closed for children.** Those boxes are greyed out and can't be tapped. Earlier, an open slot on a past day still said "Open".
+
+**Changed**
+- **Fewer pages.** The parents' **Timesheets** page and the children's **My week** page are gone. Parents approve and edit time on **Approvals**. Children log from **Today** on the Schedule (with **+ Log another chore** for an earlier day this week), and see and fix what they logged under **My logged chores** on **My balance**.
+- **The children's boxes on the Schedule** now share the full width, so the row lines up with both edges of the table below. Only parents see this row.
+- **A child's Schedule** shows **Today** and **My week** side by side (stacked on a phone). My week shows only their own pay and time for the week, how many chores they have, what they've logged so far, and how much is still open.
+- **The help line under the children's schedule** has been removed.
+
+**New**
+- **Parents choose the day the week starts** (Settings → *The week starts on*), because weekends differ between Europe and the Middle East. The schedule, the timesheet days and the weekly bonus all follow it. Changing it moves the schedule into the new weeks without moving any chore off its date. New families get Sunday for Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Jordan, Egypt, the US and Canada, and Monday elsewhere.
+- **Chores can have a time of day** (optional, in the chore's settings): **at** a set time (e.g. feed the cat at 07:00) or **by** a time (e.g. bins out by 20:00). The time shows on the schedule, in Today (sorted by time, with "overdue" once a "by" time has passed), when logging and in the chore's details. A chore logged after its "by" time is marked **Late** for parents. Pay doesn't change.
+- **Children can tap a chore on Remuneration** to see how to do it, its days, the time and pay for each session, and which days are theirs this week. Photos and SOP documents will show here once uploads are added.
+
+**Database steps (run before deploying; safe while 1.2.0 or 1.3.0 is live):**
+1. `app/supabase/migrations/0007_week_start.sql`. Until it's run, everything still works and every family stays on Monday. Only changing the week start in Settings will fail.
+2. `app/supabase/migrations/0008_chore_times.sql`. Until it's run, only giving a chore a time will fail.
+
+## 1.3.0 (20 Nov 2026, went live together with 1.4.0)
 
 **Changed**
 - **Logging a chore no longer asks how long it took.** The time logged and paid is the chore's fixed session: hours per week ÷ the days it's on, e.g. Dishes, 7 hrs ÷ 7 days = 1h 00m. The child picks the **day and time it was done**, and entries show "Done 18:30".
@@ -31,7 +52,7 @@ Branch: `claude/preview-bonus-teams`, not live yet.
 1. `app/supabase/migrations/0005_fixed_sessions.sql`
 2. `app/supabase/migrations/0006_country_and_descriptions.sql`
 
-## 1.2.0 (18 Nov 2026, live)
+## 1.2.0 (18 Nov 2026)
 Backup: branch `release/v1.2.0`.
 
 **New**

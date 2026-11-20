@@ -1,5 +1,5 @@
 import type { Chore, Household, Slot, Tier } from '../types';
-import { lang, locale, subscribeLang } from '../i18n';
+import { lang, locale, subscribeLang, t } from '../i18n';
 
 /* Day names follow the app language. These arrays are refilled in place when the language changes
    (the whole app re-renders then), so every DAYS[i] / DAYS_LONG[i] reads the current language. */
@@ -30,13 +30,22 @@ export const STARTER_CHORES = [
 ];
 export const MEMBER_COLORS = ['#41b883', '#ff6b6d', '#8e44ad', '#ffd166', '#58c091', '#1e3a5f', '#35495e', '#e67e22'];
 
-/* ---------- dates (YYYY-MM-DD strings, Monday-first weeks) ---------- */
+/* ---------- dates (YYYY-MM-DD strings) ----------
+   Weekdays are numbered 0 = Monday … 6 = Sunday (DAYS, a chore's days, release_dow). Each family
+   chooses the first day of its week; the app sets it with setWeekStart() when the family loads.
+   A week is named by the date of its first day, and a schedule column / slot `day` is 0–6 counted
+   from that day: column i is weekday colDay(i). */
 export const pad = (n: number) => String(n).padStart(2, '0');
 export const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const parse = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 export const addDays = (s: string, n: number) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
-export const weekOf = (s: string) => { const d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
-export const dayIdx = (s: string) => (parse(s).getDay() + 6) % 7;
+let WEEK_START = 0;
+export const setWeekStart = (dow: number) => { WEEK_START = (((Math.trunc(Number(dow)) || 0) % 7) + 7) % 7; };
+export const colDay = (i: number) => (WEEK_START + i) % 7;
+export const weekday = (s: string) => (parse(s).getDay() + 6) % 7;
+export const weekOf = (s: string) => addDays(s, -((weekday(s) - WEEK_START + 7) % 7));
+/** The column (0–6 from the start of its week) of a date. */
+export const dayIdx = (s: string) => (weekday(s) - WEEK_START + 7) % 7;
 export const fmtDay = (s: string) => parse(s).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' });
 export const fmtDate = (s: string) => parse(s).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 export const fmtRange = (w: string) =>
@@ -65,7 +74,8 @@ export function zonedInstant(date: string, hour: number, tz: string, minute = 0)
 }
 
 /** When the schedule for the week starting `week` goes up for the children (matches the database's week_release_at). */
-export const releaseAt = (h: Household, week: string) => zonedInstant(addDays(week, -7 + Number(h.release_dow)), Number(h.release_hour), h.timezone);
+export const releaseAt = (h: Household, week: string) =>
+  zonedInstant(addDays(week, -7 + (Number(h.release_dow) - Number(h.week_start_dow || 0) + 7) % 7), Number(h.release_hour), h.timezone);
 export const isOpen = (h: Household, week: string) => Date.now() >= releaseAt(h, week).getTime();
 export const fmtRelease = (h: Household, week: string) =>
   releaseAt(h, week).toLocaleString(locale(), { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -107,6 +117,14 @@ export const freqFor = (days: number[]) => {
   return 'Custom';
 };
 
+/* ---------- chore times ---------- */
+/** "at 07:00" / "by 20:00", or '' when the chore can be done any time on its day. */
+export const choreTime = (c: Chore) => !c.time_of_day ? '' : c.time_rule === 'by' ? t('by {time}', { time: c.time_of_day.slice(0, 5) }) : t('at {time}', { time: c.time_of_day.slice(0, 5) });
+/** For sorting a day's chores: timed ones first, earliest first. */
+export const timeSortKey = (c: Chore) => c.time_of_day ? c.time_of_day.slice(0, 5) : '99:99';
+/** A "by" chore done after its time (HH:MM in the family's time zone). */
+export const isLate = (c: Chore | undefined, doneClock: string) => !!c?.time_of_day && c.time_rule === 'by' && !!doneClock && doneClock > c.time_of_day.slice(0, 5);
+
 /* ---------- schedule ---------- */
 export type SlotMap = Map<string, Slot>;
 export const slotKey = (choreId: string, week: string, day: number) => `${choreId}_${week}_${day}`;
@@ -116,7 +134,7 @@ export function slotFor(map: SlotMap, week: string, c: Chore, day: number): Slot
   const s = map.get(slotKey(c.id, week, day)) || null;
   if (s && s.kind === 'off') return { on: false, kid: null, slot: s };
   if (s && (s.kind === 'kid' || s.kind === 'open')) return { on: true, kid: s.member_id, slot: s };
-  return { on: c.days.includes(day), kid: null, slot: null };
+  return { on: c.days.includes(colDay(day)), kid: null, slot: null };
 }
 export function kidLoad(h: Household, chores: Chore[], map: SlotMap, week: string, kid: string) {
   let mins = 0, pay = 0;
@@ -178,6 +196,9 @@ export const COUNTRIES: { code: string; currency: string; tz: string }[] = [
   { code: 'IN', currency: '₹', tz: 'Asia/Kolkata' },
   { code: 'MY', currency: 'RM', tz: 'Asia/Kuala_Lumpur' },
 ];
+/** The usual first day of the week (0 = Monday … 6 = Sunday): Sunday where the weekend is Friday and
+    Saturday, and in North America; Monday elsewhere. Parents can change it in Settings. */
+export const weekStartFor = (code: string) => ['SA', 'QA', 'KW', 'BH', 'OM', 'JO', 'EG', 'US', 'CA'].includes(code) ? 6 : 0;
 /** A country's name in the app language (e.g. "Saudi Arabia" / "المملكة العربية السعودية"). */
 export function countryName(code: string): string {
   if (!code) return '';

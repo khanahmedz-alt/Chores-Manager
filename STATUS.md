@@ -23,7 +23,7 @@ I'm building **Chores Manager**, a family chores and pocket-money app, and I wan
 
 **Chores & pay page:** add, edit and archive chores (hours per week, days, frequency). A planned-cost-versus-weekly-budget meter.
 
-**Weekly timesheet (children):** log a chore and the time spent, which goes to parents for approval. Children can't log future days, approve themselves, or edit approved time.
+**Logging chores (children):** from **Today** on the Schedule (the time is the chore's fixed session), sent to parents for approval; they see their entries under **My logged chores** on My balance. (The separate My week and Timesheets pages were removed in 1.4.0.) Children can't log future days, approve themselves, or edit approved time.
 
 **Team chores:** children who did a chore together log it once. The pay is split equally, and edits and approvals apply to the whole team.
 
@@ -112,7 +112,7 @@ I'm building **Chores Manager**, a family chores and pocket-money app, and I wan
 
 ## Feature ideas to consider
 **Region and calendar**
-- Option to start the week on Sunday (common in Saudi Arabia).
+- ~~Option to start the week on Sunday~~: done in 1.4.0 (any day, in Settings).
 - Optional Hijri dates.
 
 **Engagement and motivation**

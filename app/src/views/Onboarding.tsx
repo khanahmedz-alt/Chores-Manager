@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase, errorText } from '../supabase';
 import { LangToggle, Mark, Wave } from '../ui';
 import { t, lang, setLang, type Lang } from '../i18n';
-import { COUNTRIES, countryName, guessCountry } from '../lib/util';
+import { COUNTRIES, countryName, guessCountry, weekStartFor } from '../lib/util';
 
 const CURRENCIES = ['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'EGP', '£', '€', '$', 'CA$', 'A$', 'Rs', '₹', 'RM', ''];
 
@@ -38,6 +38,7 @@ export function Onboarding({ onReady, onSignOut }: { onReady: (householdId: stri
         const { data, error } = await supabase.rpc('create_household', { p_name: family.trim(), p_display_name: name.trim(), p_currency: currency, p_timezone: tz });
         if (error) throw error;
         await supabase.from('households').update({ country }).eq('id', data as string);
+        if (weekStartFor(country)) await supabase.from('households').update({ week_start_dow: weekStartFor(country) }).eq('id', data as string);
         onReady(data as string);
       } else {
         const { data: memberId, error } = await supabase.rpc('redeem_invite', { p_code: code.replace(/\s+/g, '').toUpperCase(), p_display_name: name.trim() });

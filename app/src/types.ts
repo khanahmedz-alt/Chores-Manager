@@ -11,6 +11,7 @@ export interface Household {
   rate_mode: 'budget' | 'manual';
   manual_rate: number;
   release_dow: number;   // 0 = Monday
+  week_start_dow: number; // the family's first day of the week, 0 = Monday … 6 = Sunday
   release_hour: number;  // 0-23, household time zone
   timezone: string;
   country: string;       // ISO code, e.g. 'SA'; '' = not chosen
@@ -38,6 +39,8 @@ export interface Chore {
   rate: number | null;
   active: boolean;
   sort_order: number;
+  time_of_day?: string | null; // 'HH:MM:SS' or null = any time that day
+  time_rule?: 'at' | 'by';     // do it at that time, or by that time at the latest
 }
 
 export interface Slot {

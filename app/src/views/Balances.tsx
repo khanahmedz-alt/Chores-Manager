@@ -2,8 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { supabase, errorText } from '../supabase';
 import { useFamily } from '../data';
 import { Avatar, Confirm, Empty, Modal, ScrollBox } from '../ui';
-import type { Member, Payment } from '../types';
-import { dur, fmtDate, fmtRange, money, r2, weekOf } from '../lib/util';
+import type { Entry, Member, Payment } from '../types';
+import { EntryModal, EntryRow } from './Timesheet';
+import { addDays, dur, fmtDate, fmtDay, fmtRange, money, r2, weekOf } from '../lib/util';
 import { t, count } from '../i18n';
 
 export function Balances() {
@@ -11,6 +12,7 @@ export function Balances() {
   const { household: h, isParent } = F;
   const [pay, setPay] = useState<Member | null>(null);
   const [del, setDel] = useState<Payment | null>(null);
+  const [edit, setEdit] = useState<Entry | null>(null);
   const kids = isParent ? F.kids : [F.me];
   const pays = F.payments.filter(p => kids.some(k => k.id === p.member_id));
 
@@ -54,6 +56,16 @@ export function Balances() {
               {isParent && <footer><button className="btn primary" onClick={() => setPay(k)}>{t('Record payment')}</button></footer>}
             </article>);
         })}</div> : <Empty title={t('No children yet')}><p className="muted">{t('Add the children on the Family page.')}</p></Empty>}
+        {!isParent && (() => {
+          // A child's chores logged in the last two weeks: what's waiting for approval, and fixing a mistake.
+          const since = addDays(F.today, -13);
+          const mine = F.entries.filter(e => e.member_id === F.me.id && e.work_date >= since)
+            .sort((a, b) => (b.done_at || b.work_date).localeCompare(a.done_at || a.work_date));
+          return <section className="stack" style={{ gap: 10 }}><h2>{t('My logged chores')}</h2>
+            {mine.length ? <div className="entries">{mine.map(e => <div key={e.id}><span className="cap">{fmtDay(e.work_date)}</span><EntryRow e={e} onEdit={setEdit} /></div>)}</div>
+              : <p className="muted">{t('Nothing logged in the last two weeks. Log a chore from Today on the Schedule page.')}</p>}
+          </section>;
+        })()}
         <section className="stack" style={{ gap: 10 }}><h2>{t('Payments')}</h2>
           {pays.length ? <ScrollBox><table>
             <thead><tr><th>{t('Date')}</th>{isParent && <th>{t('Child')}</th>}<th className="r">{t('Amount')}</th><th>{t('Method')}</th><th>{t('Paid by')}</th><th>{t('Status')}</th><th /></tr></thead>
@@ -73,6 +85,7 @@ export function Balances() {
             <tr key={w}><td>{fmtRange(w)}</td>{isParent ? F.kids.map(k => <td key={k.id} className="r">{x.by.get(k.id) ? money(h, x.by.get(k.id)!) : <span className="muted">–</span>}</td>) : <td className="r">{dur(x.mins)}</td>}
               <td className="r"><b>{money(h, x.amt)}</b></td></tr>); })}</tbody></table></ScrollBox></section>}
       </div>
+      {edit && <EntryModal childId={edit.member_id} week={weekOf(edit.work_date)} entry={edit} onClose={() => setEdit(null)} />}
       {pay && <PayModal kid={pay} owed={totals(pay.id).balance} onClose={() => setPay(null)} />}
       {del && <Confirm title={t('Remove this payment?')} action={t('Remove')} onClose={() => setDel(null)}
         text={t('{amount} to {name} on {date}. Their balance goes back up by this amount.', { amount: money(h, del.amount), name: F.member(del.member_id)?.display_name, date: fmtDate(del.paid_on) })}

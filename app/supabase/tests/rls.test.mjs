@@ -308,6 +308,50 @@ const saved = (await db.query(`select status, email, user_id from public.contact
 assert.equal(saved.status, 'new'); assert.equal(saved.user_id, null);
 ok('saved messages start with status "new"');
 
+// ---------------------------------------------------------------- first day of the week
+const slotDates = async () => (await db.query(`select chore_id, (week_start + day)::text d, kind, member_id from public.schedule_slots where household_id = $1 order by 1, 2`, [hh])).rows;
+const reviewRows = async () => (await db.query(`select week_start::text w, bonus_amount::text b, ratings from public.performance_reviews where household_id = $1 order by member_id`, [hh])).rows;
+const slots0 = await slotDates(), reviews0 = await reviewRows();
+assert.ok(slots0.length > 0 && reviews0.length > 0);
+assert.equal((await as('mustafa_phone', `update public.households set week_start_dow = 6 where id = $1`, [hh])).rowCount, 0);
+ok('a child cannot change the first day of the week');
+await as('mother', `update public.households set week_start_dow = 6 where id = $1`, [hh]);
+const sunWeek = (await db.query(`select public.household_week_of($1, $2::date)::text w`, [hh, today])).rows[0].w;
+assert.equal((await db.query(`select extract(isodow from $1::date)::int d`, [sunWeek])).rows[0].d, 7);
+assert.deepEqual(await slotDates(), slots0);
+assert.equal((await db.query(`select bool_and(extract(isodow from week_start) = 7) x from public.schedule_slots where household_id = $1`, [hh])).rows[0].x, true);
+const reviews1 = await reviewRows();
+assert.deepEqual(reviews1.map(r => [r.b, r.ratings]), reviews0.map(r => [r.b, r.ratings]));
+assert.equal(reviews1.find(r => r.w === (new Date(Date.parse(thisWeek + 'T00:00:00Z') - 86400000)).toISOString().slice(0, 10)) !== undefined, true);
+ok('switching the week to start on Sunday keeps every slot on its real date and keeps bonus reviews unchanged (moved to the Sunday before)');
+const relDay = (await db.query(`select (public.week_release_at($1, $2::date) at time zone 'Asia/Riyadh')::text t`, [hh, sunWeek])).rows[0].t;
+assert.equal(relDay.slice(0, 10), new Date(Date.parse(sunWeek + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10));
+ok('with a Sunday week, the Saturday release is the day before the week starts');
+const BINS = (await as('mother', `insert into public.chores (household_id, name, hours_per_week, frequency, days) values ($1, 'Bins', 7, 'Daily', '{0,1,2,3,4,5,6}') returning id`, [hh])).rows[0].id;
+const sunIdx = (await db.query(`select ($1::date - $2::date) d`, [today, sunWeek])).rows[0].d;
+await fails('ayesha_phone', `select public.claim_slot($1, $2, $3)`, [BINS, thisWeek, 0], /Bad week/);
+await as('ayesha_phone', `select public.claim_slot($1, $2, $3)`, [BINS, sunWeek, sunIdx]);
+assert.equal((await db.query(`select member_id from public.schedule_slots where chore_id = $1 and week_start = $2 and day = $3`, [BINS, sunWeek, sunIdx])).rows[0].member_id, AYESHA);
+await fails('mother', `insert into public.schedule_slots (household_id, week_start, chore_id, day, kind) values ($1, $2, $3, 0, 'open')`, [hh, thisWeek, BINS], /first day/);
+ok('children pick by the new weeks; a week that starts on another day is refused');
+await as('mother', `insert into public.schedule_slots (household_id, week_start, chore_id, day, kind) values ($1, $2, $3, $4, 'open')
+  on conflict (chore_id, week_start, day) do update set kind = 'open', member_id = null`, [hh, sunWeek, GARDEN, sunIdx]);
+await as('mustafa_phone', `select public.claim_slot($1, $2, $3)`, [GARDEN, sunWeek, sunIdx]);
+assert.equal((await db.query(`select kind, member_id from public.schedule_slots where chore_id = $1 and week_start = $2 and day = $3`, [GARDEN, sunWeek, sunIdx])).rows[0].member_id, MUSTAFA);
+ok('a child can take a slot a parent marked open (even on a day the chore is not usually on)');
+await as('mother', `update public.households set week_start_dow = 0 where id = $1`, [hh]);
+const slots2 = await slotDates();
+assert.deepEqual(slots2.filter(r => r.chore_id !== BINS && r.chore_id !== GARDEN), slots0.filter(r => r.chore_id !== GARDEN));
+assert.deepEqual((await reviewRows()).map(r => r.w), reviews0.map(r => r.w));
+ok('switching back to Monday puts everything back where it was');
+
+// ---------------------------------------------------------------- chore times
+await as('mother', `update public.chores set time_of_day = '20:00', time_rule = 'by' where id = $1`, [CAT]);
+assert.equal((await as('mustafa_phone', `select time_of_day::text t, time_rule from public.chores where id = $1`, [CAT])).rows[0].t, '20:00:00');
+await fails('mother', `update public.chores set time_rule = 'around' where id = $1`, [CAT], /check constraint/);
+assert.equal((await as('mustafa_phone', `update public.chores set time_of_day = '06:00' where id = $1`, [CAT])).rowCount, 0);
+ok('parents can give a chore an "at" or "by" time; children can see it but not change it');
+
 // ---------------------------------------------------------------- members
 await fails('mother', `update public.members set role = 'child' where user_id = $1`, [users.mother.id], /own role/);
 ok('a parent cannot demote themselves');
