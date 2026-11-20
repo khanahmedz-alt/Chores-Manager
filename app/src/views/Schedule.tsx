@@ -3,7 +3,7 @@ import { supabase, errorText } from '../supabase';
 import { useFamily } from '../data';
 import { Avatar, Confirm, Empty, Modal, ScrollBox } from '../ui';
 import type { Chore } from '../types';
-import { DAYS, DAYS_LONG, addDays, colDay, dayIdx, dur, fmtDate, fmtMonth, fmtRange, fmtRelease, fmtWhen, isOpen, kidLoad, money, openSlots, pad, parse, sessionMins, slotFor, textOn, weekOf } from '../lib/util';
+import { DAYS, DAYS_LONG, addDays, choreTime, colDay, nowTimeIn, timeSortKey, dayIdx, dur, fmtDate, fmtMonth, fmtRange, fmtRelease, fmtWhen, isOpen, kidLoad, money, openSlots, pad, parse, sessionMins, slotFor, textOn, weekOf } from '../lib/util';
 import { EntryModal } from './Timesheet';
 import { t, count } from '../i18n';
 
@@ -65,6 +65,15 @@ export function Schedule() {
   const ti = dayIdx(today); // today's column in this week
   const todayRows = !isParent && ti >= 0 ? cs.map(c => ({ c, s: slotFor(slotIndex, cw, c, ti) })).filter(x => x.s.on && (!x.s.kid || x.s.kid === me.id)) : [];
   const loggedToday = new Set(F.entries.filter(e => e.member_id === me.id && e.work_date === today && e.status !== 'rejected').map(e => e.chore_id));
+  todayRows.sort((a, b) => timeSortKey(a.c).localeCompare(timeSortKey(b.c)));
+  const now = nowTimeIn(h.timezone);
+  const late = (c: Chore) => !!c.time_of_day && c.time_rule === 'by' && now > c.time_of_day.slice(0, 5);
+  const whenTag = (c: Chore, done = false) => choreTime(c) && <span className={`when-tag ${!done && late(c) ? 'late' : ''}`}>⏰ {choreTime(c)}{!done && late(c) ? ` · ${t('overdue')}` : ''}</span>;
+  // The child's own week, shown next to Today (the other children's totals are for parents only).
+  const myLoad = kidLoad(h, cs, slotIndex, w, me.id);
+  let myCount = 0;
+  cs.forEach(c => { for (let d = 0; d < 7; d++) if (slotFor(slotIndex, w, c, d).kid === me.id) myCount++; });
+  const myLogged = F.entries.filter(e => e.member_id === me.id && e.status !== 'rejected' && weekOf(e.work_date) === w);
   const myToday = todayRows.filter(x => x.s.kid === me.id), openToday = todayRows.filter(x => !x.s.kid);
 
   return (
@@ -75,7 +84,8 @@ export function Schedule() {
         {isParent && (open
           ? <div className="banner go"><span><b>{t('Up for the children.')}</b> {t('Not picked yet: {count}.', { count: count('slot', n) })}</span></div>
           : <div className="banner"><span>{t('The children see this week from {when}. You can assign slots now.', { when: fmtRelease(h, w) })}</span></div>)}
-        {!isParent && ti >= 0 && <section className="panel today-panel">
+        {!isParent && <div className="today-grid">
+        {ti >= 0 && <section className="panel today-panel">
           <div className="panel-head"><h2>{t('Today')} · {DAYS_LONG[colDay(ti)]} {parse(today).getDate()} {fmtMonth(today)}</h2>
             <button type="button" className="btn ghost sm" onClick={() => setLog({})}>{t('+ Log another chore')}</button></div>
           {myToday.length + openToday.length === 0
@@ -86,6 +96,7 @@ export function Schedule() {
                   <span className="what">{done && <span className="tick" aria-hidden="true">✓</span>}{c.name}</span>
                   <span className="amt">{dur(sessionMins(c))}</span>
                   <div className="meta">
+                    {whenTag(c, done)}
                     {c.description && <span className="today-desc">{c.description}</span>}
                     <span>{s.slot?.set_by && s.slot.set_by !== me.id ? t('Set by {name}', { name: F.member(s.slot.set_by)?.display_name || t('a parent') }) : t('Picked by you')}</span>
                     <span className="acts">{done ? <span className="pill approved">{t('Logged')}</span>
@@ -96,6 +107,7 @@ export function Schedule() {
                 <div className="entry today-row is-open" key={c.id}>
                   <span className="what">{c.name}</span><span className="amt">{dur(sessionMins(c))}</span>
                   <div className="meta">
+                    {whenTag(c)}
                     {c.description && <span className="today-desc">{c.description}</span>}
                     <span>{t('Open: anyone can take it')}</span>
                     <span className="acts">{takeBtn(c, ti, cw, 'btn go sm')}</span>
@@ -103,17 +115,27 @@ export function Schedule() {
                 </div>))}
             </div>}
         </section>}
+        <section className="panel my-week">
+          <div className="panel-head"><h2>{w === cw ? t('My week') : t('My week · {week}', { week: fmtRange(w) })}</h2></div>
+          <div className="my-week-total"><Avatar m={me} /><div><b className="num">{money(h, myLoad.pay)}</b><span className="cap num">{t('{time} of chores', { time: dur(myLoad.mins) })}</span></div></div>
+          <dl className="kv">
+            <dt>{t('Chores picked or given')}</dt><dd className="num">{myCount}</dd>
+            <dt>{t('Logged so far')}</dt><dd className="num">{myLogged.length} · {money(h, myLogged.reduce((x, e) => x + e.amount, 0))}</dd>
+            <dt>{t('Still open for anyone')}</dt><dd className="num">{dur(openMins)}</dd>
+          </dl>
+        </section>
+        </div>}
         {problem && <div className="banner warn" role="alert"><span>{problem}</span><button type="button" className="btn ghost sm" onClick={() => setProblem('')}>{t('OK')}</button></div>}
-        <div className="loads">
+        {isParent && <div className="loads">
           {F.kids.map(k => { const l = kidLoad(h, cs, slotIndex, w, k.id); return (
             <div className="load" key={k.id}><Avatar m={k} /><div><b>{k.display_name}</b><span className="cap num">{dur(l.mins)} · {money(h, l.pay)}</span></div></div>); })}
           <div className="load"><span className="av" style={{ ['--c' as string]: 'var(--card)', ['--t' as string]: 'var(--muted)', border: '1px dashed var(--line)' }} aria-hidden="true">?</span>
             <div><b>{t('Open')}</b><span className="cap num">{t('{time} not picked', { time: dur(openMins) })}</span></div></div>
-        </div>
+        </div>}
         <ScrollBox scrollToSelector="th.today"><table className="sched">
           <thead><tr><th>{t('Chore')}</th>{DAYS.map((_, i) => <th key={i} className={addDays(w, i) === today ? 'today' : ''}>{DAYS[colDay(i)]}<br /><span className="cap">{parse(addDays(w, i)).getDate()}</span></th>)}</tr></thead>
           <tbody>{cs.map(c => (
-            <tr key={c.id}><td><span className="task">{c.name}</span><br /><span className="cap">{t('{time} a session', { time: dur(sessionMins(c)) })}</span></td>
+            <tr key={c.id}><td><span className="task">{c.name}</span><br /><span className="cap">{t('{time} a session', { time: dur(sessionMins(c)) })}</span>{choreTime(c) && <><br /><span className="cap when">⏰ {choreTime(c)}</span></>}</td>
               {DAYS.map((_, i) => {
                 const s = slotFor(slotIndex, w, c, i), who = s.kid ? F.member(s.kid) : undefined, past = addDays(w, i) < today;
                 const style = who ? { ['--c' as string]: who.color, ['--t' as string]: textOn(who.color) } : undefined;

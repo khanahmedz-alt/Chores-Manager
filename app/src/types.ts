@@ -39,6 +39,8 @@ export interface Chore {
   rate: number | null;
   active: boolean;
   sort_order: number;
+  time_of_day?: string | null; // 'HH:MM:SS' or null = any time that day
+  time_rule?: 'at' | 'by';     // do it at that time, or by that time at the latest
 }
 
 export interface Slot {

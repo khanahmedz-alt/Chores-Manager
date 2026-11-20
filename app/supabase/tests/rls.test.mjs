@@ -345,6 +345,13 @@ assert.deepEqual(slots2.filter(r => r.chore_id !== BINS && r.chore_id !== GARDEN
 assert.deepEqual((await reviewRows()).map(r => r.w), reviews0.map(r => r.w));
 ok('switching back to Monday puts everything back where it was');
 
+// ---------------------------------------------------------------- chore times
+await as('mother', `update public.chores set time_of_day = '20:00', time_rule = 'by' where id = $1`, [CAT]);
+assert.equal((await as('mustafa_phone', `select time_of_day::text t, time_rule from public.chores where id = $1`, [CAT])).rows[0].t, '20:00:00');
+await fails('mother', `update public.chores set time_rule = 'around' where id = $1`, [CAT], /check constraint/);
+assert.equal((await as('mustafa_phone', `update public.chores set time_of_day = '06:00' where id = $1`, [CAT])).rowCount, 0);
+ok('parents can give a chore an "at" or "by" time; children can see it but not change it');
+
 // ---------------------------------------------------------------- members
 await fails('mother', `update public.members set role = 'child' where user_id = $1`, [users.mother.id], /own role/);
 ok('a parent cannot demote themselves');

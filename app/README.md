@@ -12,6 +12,7 @@ The multi-family version of Chores Manager: React + TypeScript (Vite) on the fro
 | `supabase/migrations/0004_contact_messages.sql` | Contact-page messages: table (no client access) and the submit function with the rate limit |
 | `supabase/migrations/0005_fixed_sessions.sql` | Time logged = the chore's fixed session; entries record when the chore was done |
 | `supabase/migrations/0006_country_and_descriptions.sql` | The family's country, and a description (standard) for each chore |
+| `supabase/migrations/0008_chore_times.sql` | An optional time of day for a chore: at a set time, or done by a time |
 | `supabase/migrations/0007_week_start.sql` | Each family chooses the first day of its week; changing it moves the schedule and bonus reviews into the new weeks |
 | `supabase/functions/contact/` | Edge Function behind the Contact page: saves the message and emails the team through Resend |
 | `supabase/tests/rls.test.mjs` | 64 checks of the access rules against a real Postgres |
@@ -42,7 +43,7 @@ The app can't get around these, because the database checks them:
 ## Set up a Supabase project
 
 1. Create a project at supabase.com. A region near your users is best (e.g. `eu-west-2` London or `me-central-1` UAE).
-2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql`, `0004_contact_messages.sql`, `0005_fixed_sessions.sql`, `0006_country_and_descriptions.sql` and `0007_week_start.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
+2. **SQL Editor** → paste `supabase/migrations/0001_init.sql` → Run. Then do the same with `0002_bonus_and_teams.sql`, `0003_cleanup_unlinked_logins.sql`, `0004_contact_messages.sql`, `0005_fixed_sessions.sql`, `0006_country_and_descriptions.sql`, `0007_week_start.sql` and `0008_chore_times.sql` (turn on **pg_cron** under Database → Extensions first, so the clean-up runs nightly). If you use the Supabase CLI, run `supabase db push` instead.
 3. **Authentication → Sign In / Providers**:
    - Email: on. Keep "Confirm email" on for production.
    - **Allow anonymous sign-ins: on.** Children's devices need this.

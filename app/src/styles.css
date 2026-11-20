@@ -453,3 +453,15 @@ a.menu-item { display: block; text-decoration: none; }
 button.slot:disabled, .btn:disabled { cursor: progress; opacity: .7; }
 .chore-info h3 { margin: 0 0 6px; font-size: 15px; color: var(--heading); }
 .chore-info .kv { padding: 12px 0 0; margin-top: 14px; grid-template-columns: auto 1fr; }
+/* 1.4.0: children's Today + My week side by side; chore times */
+.today-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .today-grid { grid-template-columns: 1fr; } }
+.today-grid > .panel { margin: 0; }
+.my-week-total { display: flex; align-items: center; gap: 12px; }
+.my-week-total b { display: block; font-size: 26px; color: var(--heading); line-height: 1.1; }
+.my-week .kv { padding: 12px 0 0; margin-top: 12px; }
+.when-tag { flex-basis: 100%; font-weight: 600; color: var(--heading); }
+.when-tag.late { color: var(--bad-fg); }
+.cap.when, b.when { color: var(--heading); font-weight: 600; }
+.time-pick { align-items: center; }
+.pill.late { background: var(--bad-bg); color: var(--bad-fg); }

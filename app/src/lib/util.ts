@@ -1,5 +1,5 @@
 import type { Chore, Household, Slot, Tier } from '../types';
-import { lang, locale, subscribeLang } from '../i18n';
+import { lang, locale, subscribeLang, t } from '../i18n';
 
 /* Day names follow the app language. These arrays are refilled in place when the language changes
    (the whole app re-renders then), so every DAYS[i] / DAYS_LONG[i] reads the current language. */
@@ -116,6 +116,14 @@ export const freqFor = (days: number[]) => {
   for (const k in FREQ) if (FREQ[k].length === s.length && FREQ[k].every((v, i) => v === s[i])) return k;
   return 'Custom';
 };
+
+/* ---------- chore times ---------- */
+/** "at 07:00" / "by 20:00", or '' when the chore can be done any time on its day. */
+export const choreTime = (c: Chore) => !c.time_of_day ? '' : c.time_rule === 'by' ? t('by {time}', { time: c.time_of_day.slice(0, 5) }) : t('at {time}', { time: c.time_of_day.slice(0, 5) });
+/** For sorting a day's chores: timed ones first, earliest first. */
+export const timeSortKey = (c: Chore) => c.time_of_day ? c.time_of_day.slice(0, 5) : '99:99';
+/** A "by" chore done after its time (HH:MM in the family's time zone). */
+export const isLate = (c: Chore | undefined, doneClock: string) => !!c?.time_of_day && c.time_rule === 'by' && !!doneClock && doneClock > c.time_of_day.slice(0, 5);
 
 /* ---------- schedule ---------- */
 export type SlotMap = Map<string, Slot>;

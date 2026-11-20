@@ -3,7 +3,7 @@ import { supabase } from '../supabase';
 import { useFamily } from '../data';
 import { Avatar, Modal, Pill, Confirm } from '../ui';
 import type { Entry } from '../types';
-import { DAYS, DAYS_LONG, addDays, colDay, choreRate, clockIn, dur, fmtDate, fmtDay, fmtRange, money, nowTimeIn, r2, sessionMins, weekOf, zonedInstant } from '../lib/util';
+import { DAYS, DAYS_LONG, addDays, choreTime, colDay, isLate, choreRate, clockIn, dur, fmtDate, fmtDay, fmtRange, money, nowTimeIn, r2, sessionMins, weekOf, zonedInstant } from '../lib/util';
 import { t, count } from '../i18n';
 
 /* ---------------- Log / edit time ---------------- */
@@ -73,7 +73,8 @@ export function EntryModal({ childId, week, date, choreId, entry, onClose }: {
         <p className="muted"><Avatar m={kid} size="sm" /> <b style={{ color: 'var(--heading)' }}>{kid?.display_name}</b> · {t('week of {week}', { week: fmtRange(w) })}</p>
         <label className="field"><span>{t('Chore')}</span>
           <select value={cid} onChange={e => setCid(e.target.value)}>{chores.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-          {chore?.description && <span className="chore-standard"><b>{t('How to do it')}:</b> {chore.description}</span>}</label>
+          {chore?.description && <span className="chore-standard"><b>{t('How to do it')}:</b> {chore.description}</span>}
+          {chore && choreTime(chore) && <span className="cap when">⏰ {choreTime(chore)}</span>}</label>
         <div className="row2 when">
           <label className="field"><span>{t('Day done')}</span>
             <select value={day} onChange={e => setDay(e.target.value)}>{DAYS.map((_, i) => {
@@ -117,6 +118,8 @@ export function EntryRow({ e, onEdit }: { e: Entry; onEdit: (e: Entry) => void }
     ? supabase.from('time_entries').update({ status }).eq('team_id', e.team_id)
     : supabase.from('time_entries').update({ status }).eq('id', e.id), msg);
   const approve = () => setStatus('approved', n > 1 ? t('Approved for all {n} in the team', { n }) : t('Approved'));
+  const chore = F.chores.find(c => c.id === e.chore_id);
+  const late = e.done_at ? isLate(chore, clockIn(e.done_at, F.household.timezone)) : false;
   const canEdit = F.isParent || (e.status !== 'approved' && (!e.team_id || e.created_by === F.me.id));
   return (
     <div className="entry">
@@ -124,6 +127,7 @@ export function EntryRow({ e, onEdit }: { e: Entry; onEdit: (e: Entry) => void }
       <div className="meta">
         {e.done_at && <span className="num">{t('Done {time}', { time: clockIn(e.done_at, F.household.timezone) })}</span>}
         <span className="num">{dur(e.minutes)} × {money(F.household, e.rate)}{t('/hr')}{n > 1 ? ` ÷ ${n}` : ''}</span><Pill status={e.status} />
+        {late && chore && <span className="pill late">{t('Late · due {when}', { when: choreTime(chore) })}</span>}
         {n > 1 && <span className="pill team">{t('Team · with {names}', { names: others })}</span>}
         {e.note && <span>“{e.note}”</span>}
         <span className="acts">

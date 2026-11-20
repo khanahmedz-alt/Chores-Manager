@@ -3,7 +3,7 @@ import { supabase } from '../supabase';
 import { useFamily } from '../data';
 import { Avatar, Empty, Modal, ScrollBox } from '../ui';
 import type { Chore, Household } from '../types';
-import { COUNTRIES, DAY_LETTERS, DAYS, DAYS_LONG, FREQ, colDay, STARTER_CHORES, choreRate, countryName, dur, familyRate, freqFor, hrs, money, num, pad, r2, sessionMins, slotFor, uniq, weekOf, weeklyBudget } from '../lib/util';
+import { COUNTRIES, DAY_LETTERS, DAYS, DAYS_LONG, FREQ, choreTime, colDay, STARTER_CHORES, choreRate, countryName, dur, familyRate, freqFor, hrs, money, num, pad, r2, sessionMins, slotFor, uniq, weekOf, weeklyBudget } from '../lib/util';
 import { t, lang } from '../i18n';
 
 /** Chores and pay. Shown as a section of the Remuneration page. */
@@ -54,7 +54,7 @@ export function Chores() {
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c); } }}>
                 <td><span className="task">{c.name}</span>{c.description && <span className="chore-desc">{c.description}</span>}{c.rate ? <><br /><span className="cap">{t('Own rate {rate}/hr', { rate: money(h, c.rate) })}</span></> : null}</td>
                 <td className="r">{hrs(c.hours_per_week)}</td><td className="r">{money(h, c.hours_per_week * choreRate(h, c))}</td>
-                <td>{t(c.frequency || freqFor(c.days))}<br /><span className="cap">{t('{time} a session', { time: dur(sessionMins(c)) })}</span></td>
+                <td>{t(c.frequency || freqFor(c.days))}<br /><span className="cap">{t('{time} a session', { time: dur(sessionMins(c)) })}{choreTime(c) && <> · <b className="when">{choreTime(c)}</b></>}</span></td>
                 <td><span className="daydots" aria-label={c.days.map(d => DAYS[d]).join(', ')}>{DAYS.map((_, i) => <i key={i} className={c.days.includes(colDay(i)) ? 'on' : ''}>{DAY_LETTERS[colDay(i)]}</i>)}</span></td>
                 <td>{who.length ? <span style={{ display: 'inline-flex', gap: 3 }}>{who.map(m => <Avatar key={m!.id} m={m} size="sm" />)}</span> : <span className="cap">{t('Open')}</span>}</td>
               </tr>);
@@ -84,6 +84,9 @@ function ChoreModal({ chore, onClose }: { chore: Chore | null; onClose: () => vo
   const [days, setDays] = useState<number[]>(chore?.days || FREQ['Alternate day']);
   const [freq, setFreq] = useState(chore?.frequency || 'Alternate day');
   const [rate, setRate] = useState(chore?.rate ? String(chore.rate) : '');
+  // Optional time of day: '' = any time, 'at' = do it at this time, 'by' = done by this time.
+  const [rule, setRule] = useState<'' | 'at' | 'by'>(chore?.time_of_day ? (chore.time_rule || 'at') : '');
+  const [clock, setClock] = useState(chore?.time_of_day?.slice(0, 5) || '07:00');
   const [err, setErr] = useState('');
   const hNum = Number(hours) || 0, rNum = Number(rate) > 0 ? Number(rate) : familyRate(h);
 
@@ -93,7 +96,12 @@ function ChoreModal({ chore, onClose }: { chore: Chore | null; onClose: () => vo
     if (!name.trim()) { setErr(t('Give the chore a name.')); return; }
     if (!(hNum > 0)) { setErr(t('Hours per week must be more than 0.')); return; }
     if (!days.length) { setErr(t('Pick at least one day.')); return; }
-    const body = { name: name.trim(), description: desc.trim(), hours_per_week: hNum, frequency: freq, days, rate: Number(rate) > 0 ? r2(Number(rate)) : null };
+    if (rule && !/^\d{2}:\d{2}$/.test(clock)) { setErr(t('Enter the time, e.g. 07:00.')); return; }
+    const time = rule ? { time_of_day: clock, time_rule: rule } : { time_of_day: null };
+    const hadTime = !!chore?.time_of_day;
+    const body = { name: name.trim(), description: desc.trim(), hours_per_week: hNum, frequency: freq, days, rate: Number(rate) > 0 ? r2(Number(rate)) : null,
+      // Sent only when a time is set or removed, so saving works before the database step for times has been run.
+      ...(rule || hadTime ? time : {}) };
     const ok = chore
       ? await F.run(['chores'], () => supabase.from('chores').update(body).eq('id', chore.id), t('Chore saved'))
       : await F.run(['chores'], () => supabase.from('chores').insert({ ...body, household_id: h.id, sort_order: Math.max(0, ...F.chores.map(c => c.sort_order)) + 1 }), t('{name} added', { name: body.name }));
@@ -113,6 +121,15 @@ function ChoreModal({ chore, onClose }: { chore: Chore | null; onClose: () => vo
         </div>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}><legend style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 6 }}>{t('Days')}</legend>
           <div className="daypick">{DAYS.map((_, i) => { const d = colDay(i); return <label key={i}><input type="checkbox" checked={days.includes(d)} onChange={() => toggle(d)} />{DAYS[d]}</label>; })}</div></fieldset>
+        <div className="field"><span>{t('Time of day')} <small>{t('(optional)')}</small></span>
+          <div className="row2 time-pick">
+            <select aria-label={t('Time of day')} value={rule} onChange={e => setRule(e.target.value as '' | 'at' | 'by')}>
+              <option value="">{t('Any time that day')}</option>
+              <option value="at">{t('At a set time')}</option>
+              <option value="by">{t('Done by a time')}</option></select>
+            {rule && <input type="time" aria-label={t('Time')} value={clock} onChange={e => setClock(e.target.value)} />}
+          </div>
+          <small>{rule === 'at' ? t('e.g. feed the cat at 07:00. Shown on the schedule and in Today.') : rule === 'by' ? t('e.g. bins out by 20:00. If it’s logged later, you’ll see it marked late.') : t('Most chores can be done any time on their day.')}</small></div>
         <label className="field"><span>{t('Own hourly rate')} <small>{t('(optional)')}</small></span><input type="number" min={0} step={0.01} value={rate} onChange={e => setRate(e.target.value)} placeholder={t('Family rate {rate}', { rate: num(familyRate(h)) })} />
           <small>{t('Leave blank to use the family rate.')}</small></label>
         <div className="preview"><span className="muted num">{t('{hours} hrs × {rate}/hr', { hours: hrs(hNum), rate: money(h, rNum) })}{days.length ? ' · ' + t('{time} × {n} days', { time: dur(Math.round(hNum * 60 / days.length / 5) * 5), n: days.length }) : ''}</span><b className="num">{money(h, r2(hNum * rNum))} {t('/wk')}</b></div>
@@ -200,6 +217,7 @@ function ChoreInfo({ c, week, onClose }: { c: Chore; week: string; onClose: () =
           {c.description ? <p className="chore-standard">{c.description}</p> : <p className="muted">{t('Your parents haven’t written instructions for this chore yet.')}</p>}</section>
         <dl className="kv">
           <dt>{t('Days')}</dt><dd>{days.map(d => DAYS_LONG[d]).join(', ')}</dd>
+          {choreTime(c) && <><dt>{t('When')}</dt><dd>{choreTime(c)}</dd></>}
           <dt>{t('Each session')}</dt><dd>{dur(mins)}</dd>
           <dt>{t('Pay per session')}</dt><dd>{money(h, r2(mins / 60 * choreRate(h, c)))}</dd>
           <dt>{t('Yours this week')}</dt><dd>{mine.length ? mine.map(i => DAYS_LONG[colDay(i)]).join(', ') : t('None yet')}</dd>
