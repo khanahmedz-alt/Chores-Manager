@@ -3,7 +3,7 @@ import { supabase } from '../supabase';
 import { useFamily } from '../data';
 import { Avatar, Modal, Pill, Confirm } from '../ui';
 import type { Entry } from '../types';
-import { DAYS, DAYS_LONG, addDays, choreRate, clockIn, dur, fmtDate, fmtDay, fmtMonth, fmtRange, fmtRelease, isOpen, kidLoad, money, nowTimeIn, openSlots, parse, r2, sessionMins, slotFor, weekOf, familyRate, zonedInstant } from '../lib/util';
+import { DAYS, DAYS_LONG, addDays, colDay, choreRate, clockIn, dur, fmtDate, fmtDay, fmtRange, money, nowTimeIn, r2, sessionMins, weekOf, zonedInstant } from '../lib/util';
 import { t, count } from '../i18n';
 
 /* ---------------- Log / edit time ---------------- */
@@ -78,7 +78,7 @@ export function EntryModal({ childId, week, date, choreId, entry, onClose }: {
           <label className="field"><span>{t('Day done')}</span>
             <select value={day} onChange={e => setDay(e.target.value)}>{DAYS.map((_, i) => {
               const dd = addDays(w, i), dis = dd > today;
-              return <option key={dd} value={dd} disabled={dis}>{DAYS_LONG[i]} {fmtDate(dd)}{dis ? ` ${t('(not yet)')}` : ''}</option>;
+              return <option key={dd} value={dd} disabled={dis}>{DAYS_LONG[colDay(i)]} {fmtDate(dd)}{dis ? ` ${t('(not yet)')}` : ''}</option>;
             })}</select></label>
           <label className="field"><span>{t('Time done')}</span>
             <input type="time" value={time} onChange={e => setTime(e.target.value)} required /></label>
@@ -137,115 +137,5 @@ export function EntryRow({ e, onEdit }: { e: Entry; onEdit: (e: Entry) => void }
         text={t('{who} logged {time} of {chore} on {day}. It won’t be paid. They can edit and resend it.', { who: n > 1 ? t('The team ({names})', { names: e.team_members.map(id => F.member(id)?.display_name).join('، ') }) : F.member(e.member_id)?.display_name, time: dur(e.minutes), chore: e.chore_name, day: fmtDay(e.work_date) })}
         onConfirm={() => setStatus('rejected', t('Marked as not approved'))} />}
     </div>
-  );
-}
-
-/* ---------------- The 7-day timesheet ---------------- */
-export function Timesheet({ kidId, week, setWeek }: { kidId: string; week: string; setWeek: (w: string) => void }) {
-  const F = useFamily();
-  const { household: h, today, isParent, activeChores: chores, slotIndex } = F;
-  const [modal, setModal] = useState<null | { date?: string; choreId?: string; minutes?: number; entry?: Entry }>(null);
-  const w = week;
-  const es = F.entries.filter(e => e.member_id === kidId && weekOf(e.work_date) === w);
-  const live = es.filter(e => e.status !== 'rejected');
-  const wkMins = live.reduce((s, e) => s + e.minutes, 0);
-  const sum = (a: Entry[]) => r2(a.reduce((s, e) => s + e.amount, 0));
-  const approved = sum(es.filter(e => e.status === 'approved')), pending = sum(es.filter(e => e.status === 'submitted'));
-  const showPlan = isParent || isOpen(h, w);
-  const planned = kidLoad(h, chores, slotIndex, w, kidId).mins;
-  const kid = F.member(kidId);
-  const bonus = F.reviews.find(r => r.member_id === kidId && r.week_start === w);
-
-  return (
-    <>
-      <div className="weekbar">
-        <button className="btn ghost icon" onClick={() => setWeek(addDays(w, -7))} aria-label={t('Previous week')}>‹</button>
-        <span className="range num">{fmtRange(w)}</span>
-        <button className="btn ghost icon" onClick={() => setWeek(addDays(w, 7))} aria-label={t('Next week')}>›</button>
-        {w !== weekOf(today) && <button className="btn ghost sm" onClick={() => setWeek(weekOf(today))}>{t('This week')}</button>}
-      </div>
-      <div className="stats">
-        <div className="stat"><span className="eyebrow">{t('Hours logged')}</span><b>{dur(wkMins)}</b><span className="cap">{t('Planned {time}', { time: dur(planned) })}</span></div>
-        <div className="stat"><span className="eyebrow">{t('Approved')}</span><b>{money(h, approved)}</b><span className="cap">{t('Counts toward balance')}</span></div>
-        <div className="stat"><span className="eyebrow">{t('Awaiting approval')}</span><b>{money(h, pending)}</b><span className="cap">{count('entry', es.filter(e => e.status === 'submitted').length)}</span></div>
-        <div className="stat"><span className="eyebrow">{t('Pay rate')}</span><b>{money(h, familyRate(h))}</b><span className="cap">{t('per hour')}</span></div>
-      </div>
-      <div className="days">
-        {DAYS_LONG.map((name, i) => {
-          const date = addDays(w, i), future = date > today;
-          const dayEs = es.filter(e => e.work_date === date);
-          const mins = dayEs.filter(e => e.status !== 'rejected').reduce((s, e) => s + e.minutes, 0);
-          const plan = showPlan ? chores.filter(c => { const s = slotFor(slotIndex, w, c, i); return s.on && (!s.kid || s.kid === kidId); }) : [];
-          const done = new Set(dayEs.filter(e => e.status !== 'rejected').map(e => e.chore_id));
-          const canLog = !future;
-          return (
-            <article key={date} className={`day ${date === today ? 'today' : ''} ${future ? 'future' : ''}`}>
-              <header><b>{name} <span className="muted" style={{ fontWeight: 500 }}>{parse(date).getDate()} {fmtMonth(date)}</span></b>
-                <span className="cap num">{mins ? dur(mins) : date === today ? t('Today') : ''}</span></header>
-              <div className="day-body">
-                {plan.length > 0 && <div className="plan">{plan.map(c => {
-                  const mine = slotFor(slotIndex, w, c, i).kid === kidId, isDone = done.has(c.id);
-                  return <span key={c.id} className={`plan-chip ${mine ? 'mine' : ''} ${isDone ? 'done' : ''}`} title={[mine ? t('{name}’s', { name: kid?.display_name }) : t('Open to anyone'), c.description].filter(Boolean).join(' · ')}>
-                    {c.name} · {dur(sessionMins(c))}
-                    {canLog && !isDone && <button onClick={() => setModal({ date, choreId: c.id, minutes: sessionMins(c) })} aria-label={t('Log {chore} on {day}', { chore: c.name, day: fmtDay(date) })}>{t('Log')}</button>}
-                  </span>;
-                })}</div>}
-                {!plan.length && !dayEs.length && <p className="empty-note">{t('No chores planned.')}</p>}
-                {dayEs.length > 0 && <div className="entries">{dayEs.map(e => <EntryRow key={e.id} e={e} onEdit={en => setModal({ entry: en })} />)}</div>}
-                {canLog ? <button className="link add-line" onClick={() => setModal({ date })}>{t('+ Add chore time')}</button>
-                  : <p className="empty-note">{t('You can log this day once it arrives.')}</p>}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-      <div className="weektotal"><span>{t('Week total for {name}', { name: kid?.display_name })}{bonus ? ` · ${t('includes {amount} performance bonus', { amount: money(h, bonus.bonus_amount) })}` : ''}</span><b>{dur(wkMins)} · {money(h, r2(sum(live) + (bonus?.bonus_amount || 0)))}</b></div>
-      {modal && <EntryModal childId={kidId} week={w} {...modal} onClose={() => setModal(null)} />}
-    </>
-  );
-}
-
-/* ---------------- Child: My week ---------------- */
-export function MyWeek({ go }: { go: (view: string, week?: string) => void }) {
-  const F = useFamily();
-  const [week, setWeek] = useState(weekOf(F.today));
-  const [adding, setAdding] = useState(false);
-  const nw = addDays(weekOf(F.today), 7);
-  const open = isOpen(F.household, nw);
-  const load = kidLoad(F.household, F.activeChores, F.slotIndex, nw, F.me.id);
-  const n = openSlots(F.activeChores, F.slotIndex, nw, F.today);
-  return (
-    <>
-      <div className="page-head"><div><h1>{t('{name}’s timesheet', { name: F.me.display_name })}</h1><p className="muted">{t('Log the time you spend on each chore. A parent approves it, then it’s added to your balance.')}</p></div>
-        <button className="btn primary" onClick={() => setAdding(true)}>{t('+ Log chore time')}</button></div>
-      <div className="stack">
-        {open
-          ? <button className="banner go" onClick={() => go('schedule', nw)}><span><b>{t('Next week’s schedule is up.')}</b> {load.mins ? t('You’ve picked {time} ({amount}).', { time: dur(load.mins), amount: money(F.household, load.pay) }) : t('You haven’t picked any chores yet.')} {n ? t('Still open: {count}.', { count: count('slot', n) }) : ''}</span><span className="banner-cta">{t('Pick chores ›')}</span></button>
-          : <div className="banner"><span>{t('Next week’s schedule goes up {when}. You can pick your chores then.', { when: fmtRelease(F.household, nw) })}</span></div>}
-        <Timesheet kidId={F.me.id} week={week} setWeek={setWeek} />
-      </div>
-      {adding && <EntryModal childId={F.me.id} week={week} onClose={() => setAdding(false)} />}
-    </>
-  );
-}
-
-/* ---------------- Parent: Timesheets ---------------- */
-export function Timesheets() {
-  const F = useFamily();
-  const [kid, setKid] = useState(F.kids[0]?.id || '');
-  const [week, setWeek] = useState(weekOf(F.today));
-  if (!F.kids.length) return <><div className="page-head"><div><h1>{t('Timesheets')}</h1></div></div><div className="empty"><h2>{t('No children yet')}</h2><p className="muted">{t('Add the children on the Family page.')}</p></div></>;
-  const k = F.kids.some(x => x.id === kid) ? kid : F.kids[0].id;
-  return (
-    <>
-      <div className="page-head"><div><h1>{t('Timesheets')}</h1><p className="muted">{t('Each child’s week. Approve entries here or on Approvals. Time you add yourself is approved straight away.')}</p></div></div>
-      <div className="stack">
-        <div className="kidchips" role="group" aria-label={t('Choose a child')}>{F.kids.map(c => {
-          const p = F.entries.filter(e => e.member_id === c.id && e.status === 'submitted').length;
-          return <button key={c.id} className="kidchip" aria-pressed={c.id === k} onClick={() => setKid(c.id)}><Avatar m={c} />{c.display_name}{p > 0 && <span className="count">{p}</span>}</button>;
-        })}</div>
-        <Timesheet kidId={k} week={week} setWeek={setWeek} />
-      </div>
-    </>
   );
 }

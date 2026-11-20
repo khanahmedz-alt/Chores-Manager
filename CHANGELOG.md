@@ -13,7 +13,26 @@ The version number shows in the app's footer, so you can always check which one 
 
 ---
 
-## 1.3.0 (in testing)
+## 1.4.0 (in testing)
+Branch: `claude/preview-bonus-teams`, not live yet. Includes everything in 1.3.0.
+
+**Fixed**
+- **Take on the children's schedule.** The button now shows "Taking…" while it works and can't be tapped twice. If the chore can't be taken, the reason stays on the page in a red box (not just a pop-up that disappears).
+- **Days that have passed are closed for children.** Those boxes are greyed out and can't be tapped. Earlier, an open slot on a past day still said "Open".
+
+**Changed**
+- **Fewer pages.** The parents' **Timesheets** page and the children's **My week** page are gone. Parents approve and edit time on **Approvals**. Children log from **Today** on the Schedule (with **+ Log another chore** for an earlier day this week), and see and fix what they logged under **My logged chores** on **My balance**.
+- **The children's boxes on the Schedule** now share the full width, so the row lines up with both edges of the table below.
+- **The help line under the children's schedule** has been removed.
+
+**New**
+- **Parents choose the day the week starts** (Settings → *The week starts on*), because weekends differ between Europe and the Middle East. The schedule, the timesheet days and the weekly bonus all follow it. Changing it moves the schedule into the new weeks without moving any chore off its date. New families get Sunday for Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Jordan, Egypt, the US and Canada, and Monday elsewhere.
+- **Children can tap a chore on Remuneration** to see how to do it, its days, the time and pay for each session, and which days are theirs this week. Photos and SOP documents will show here once uploads are added.
+
+**Database steps (run before deploying; safe while 1.2.0 or 1.3.0 is live):**
+1. `app/supabase/migrations/0007_week_start.sql`. Until it's run, everything still works and every family stays on Monday. Only changing the week start in Settings will fail.
+
+## 1.3.0 (in testing, released together with 1.4.0)
 Branch: `claude/preview-bonus-teams`, not live yet.
 
 **Changed**

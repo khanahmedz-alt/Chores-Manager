@@ -5,7 +5,6 @@ import { FamilyProvider, useFamily } from './data';
 import { Avatar, Confirm, LangToggle, Mark, Wave } from './ui';
 import { AuthScreen, NewPassword } from './views/Auth';
 import { Onboarding } from './views/Onboarding';
-import { MyWeek, Timesheets } from './views/Timesheet';
 import { Approvals } from './views/Approvals';
 import { Schedule } from './views/Schedule';
 import { Balances } from './views/Balances';
@@ -73,8 +72,8 @@ export default function App() {
 }
 
 const VIEWS = {
-  parent: [['approvals', 'Approvals'], ['timesheets', 'Timesheets'], ['schedule', 'Schedule'], ['remuneration', 'Remuneration'], ['balances', 'Balances'], ['family', 'Family']] /* labels go through t() when shown */,
-  child: [['my-week', 'My week'], ['schedule', 'Schedule'], ['remuneration', 'Remuneration'], ['balance', 'My balance']],
+  parent: [['approvals', 'Approvals'], ['schedule', 'Schedule'], ['remuneration', 'Remuneration'], ['balances', 'Balances'], ['family', 'Family']] /* labels go through t() when shown */,
+  child: [['schedule', 'Schedule'], ['remuneration', 'Remuneration'], ['balance', 'My balance']],
 } as const;
 
 function useHash() {
@@ -88,14 +87,12 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
   const hash = useHash();
   const [menu, setMenu] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [schedWeek, setSchedWeek] = useState<string | undefined>();
   const list = VIEWS[F.me.role];
   const wanted = hash === 'chores' || hash === 'bonus' ? 'remuneration' : hash; // old links
   const view = list.some(v => v[0] === wanted) ? wanted : list[0][0];
   const pending = F.entries.filter(e => e.status === 'submitted').length;
   const nw = addDays(weekOf(F.today), 7);
   const newWeek = !F.isParent && isOpen(F.household, nw) && openSlots(F.activeChores, F.slotIndex, nw, F.today) > 0 && kidLoad(F.household, F.activeChores, F.slotIndex, nw, F.me.id).mins === 0;
-  const go = (v: string, week?: string) => { setSchedWeek(week); window.location.hash = v; };
 
   return (
     <>
@@ -121,11 +118,9 @@ function Shell({ memberships, anonymous, signOut, switchTo }: { memberships: Mem
               {id === 'schedule' && newWeek && <span className="count">{t('New')}</span>}</a>))}
         </nav>
       </header>
-      <main className="wrap">
-        {view === 'my-week' && <MyWeek go={go} />}
-        {view === 'timesheets' && <Timesheets />}
+      <main className="wrap" key={F.household.week_start_dow /* a new first day of the week starts every view afresh */}>
         {view === 'approvals' && <Approvals />}
-        {view === 'schedule' && <Schedule key={schedWeek || 'default'} initialWeek={schedWeek} />}
+        {view === 'schedule' && <Schedule />}
         {view === 'remuneration' && <Remuneration />}
         {(view === 'balances' || view === 'balance') && <Balances />}
         {view === 'family' && <Family />}

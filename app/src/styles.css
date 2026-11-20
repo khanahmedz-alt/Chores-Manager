@@ -206,7 +206,8 @@ button.slot:not(.on):not(.kid):hover { border-color: var(--brand); color: var(--
 .banner.go { background: color-mix(in srgb, var(--brand) 18%, var(--card)); border: 1px solid var(--brand); }
 .banner b { color: var(--heading); }
 .banner-cta { font-weight: 700; color: var(--brand-ink); white-space: nowrap; }
-.loads { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); gap: 10px; }
+/* auto-fit: the boxes share the full width, so the row lines up with both edges of the table below */
+.loads { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; }
 .load { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--raised); border-radius: var(--r-md); }
 .load div { min-width: 0; }
 .load b { display: block; color: var(--heading); }
@@ -443,3 +444,12 @@ a.menu-item { display: block; text-decoration: none; }
 [dir="rtl"] .sched td:first-child, [dir="rtl"] .sched th:first-child { box-shadow: inset 1px 0 0 var(--line); }
 .sched th:first-child { background: var(--raised); }
 @media (max-width: 560px) { .sched td:first-child, .sched th:first-child { min-width: 112px; max-width: 132px; } .sched .task { font-size: 14px; } }
+
+/* 1.4.0: schedule */
+.banner.warn { background: var(--bad-bg); color: var(--bad-fg); border: 1px solid var(--bad-fg); }
+.slot.past { border: 0; background: var(--raised); color: var(--muted); opacity: .5; font-weight: 500; }
+.slot.past.kid { background: var(--c); color: var(--t); opacity: .4; }
+.slot.past.mine { outline-color: var(--muted); }
+button.slot:disabled, .btn:disabled { cursor: progress; opacity: .7; }
+.chore-info h3 { margin: 0 0 6px; font-size: 15px; color: var(--heading); }
+.chore-info .kv { padding: 12px 0 0; margin-top: 14px; grid-template-columns: auto 1fr; }

@@ -11,6 +11,7 @@ export interface Household {
   rate_mode: 'budget' | 'manual';
   manual_rate: number;
   release_dow: number;   // 0 = Monday
+  week_start_dow: number; // the family's first day of the week, 0 = Monday … 6 = Sunday
   release_hour: number;  // 0-23, household time zone
   timezone: string;
   country: string;       // ISO code, e.g. 'SA'; '' = not chosen

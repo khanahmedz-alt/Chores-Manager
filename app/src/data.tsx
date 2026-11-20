@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase, errorText } from './supabase';
 import type { BonusMetric, Chore, Entry, Household, Member, Payment, Review, Slot, SlotKind } from './types';
-import { addDays, slotMap, todayIn, weekOf, type SlotMap } from './lib/util';
+import { addDays, setWeekStart, slotMap, todayIn, weekOf, type SlotMap } from './lib/util';
 import { t } from './i18n';
 
 type Table = 'households' | 'members' | 'chores' | 'schedule_slots' | 'time_entries' | 'payments' | 'bonus_metrics' | 'performance_reviews';
@@ -43,7 +43,7 @@ async function fetchTable(t: Table, hh: string): Promise<Partial<FamilyData>> {
     case 'households': {
       const { data, error } = await supabase.from('households').select('*').eq('id', hh).single();
       if (error) throw error;
-      return { household: num([data as Household], ['monthly_budget', 'budget_hours', 'manual_rate', 'release_dow', 'release_hour'])[0] };
+      return { household: num([data as Household], ['monthly_budget', 'budget_hours', 'manual_rate', 'release_dow', 'release_hour', 'week_start_dow'])[0] };
     }
     case 'members': {
       const { data, error } = await supabase.from('members').select('*').eq('household_id', hh).order('sort_order').order('created_at');
@@ -148,6 +148,7 @@ export function FamilyProvider({ householdId, userId, children, fallback }: { ho
       run(['schedule_slots'], () => kind === null
         ? supabase.from('schedule_slots').delete().match({ chore_id: choreId, week_start: week, day })
         : supabase.from('schedule_slots').upsert({ household_id: data.household.id, week_start: week, chore_id: choreId, day, kind, member_id: kind === 'kid' ? memberId : null }, { onConflict: 'chore_id,week_start,day' }));
+    setWeekStart(data.household.week_start_dow); // every week calculation below and in the views uses it
     const active = data.members.filter(m => m.active);
     return {
       ...data,
